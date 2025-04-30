@@ -19,8 +19,10 @@ export function HeroSection() {
             <Link href="/dashboard" passHref legacyBehavior>
               <Button size="lg" variant="default" className="bg-accent hover:bg-accent/90">Get Started</Button>
             </Link>
-            {/* Placeholder Learn More button */}
-            <Button size="lg" variant="outline" disabled>Learn More</Button>
+            {/* Link Learn More button to features section */}
+            <Link href="#features" passHref legacyBehavior>
+                <Button size="lg" variant="outline">Learn More</Button>
+            </Link>
           </div>
         </div>
         <div className="relative aspect-video rounded-lg overflow-hidden shadow-xl">

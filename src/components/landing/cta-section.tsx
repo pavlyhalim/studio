@@ -1,5 +1,6 @@
 
 import { Button } from "@/components/ui/button";
+import Link from "next/link"; // Import Link
 
 export function CallToActionSection() {
   return (
@@ -12,15 +13,18 @@ export function CallToActionSection() {
           Join ALANT Lite today and experience the future of education. Sign up now or explore a demo to see how AI can enhance your studies or teaching.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-           {/* Placeholder buttons - replace onClick/href later */}
-          <Button size="lg" variant="secondary" className="text-primary hover:bg-secondary/90">Sign Up Now</Button>
-          <Button
-            size="lg"
-            variant="ghost" // Changed from outline
-            className="border border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary" // Updated classes for visibility
-          >
-            Request a Demo
-          </Button>
+           {/* Placeholder button - replace onClick/href later */}
+           <Button size="lg" variant="secondary" className="text-primary hover:bg-secondary/90" disabled>Sign Up Now</Button> {/* Keep Sign Up disabled for now */}
+           {/* Link Request a Demo button to /contact */}
+            <Link href="/contact" passHref legacyBehavior>
+              <Button
+                size="lg"
+                variant="ghost" // Changed from outline
+                className="border border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary" // Updated classes for visibility
+              >
+                Request a Demo
+              </Button>
+            </Link>
         </div>
       </div>
     </section>

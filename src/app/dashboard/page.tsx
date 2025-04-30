@@ -17,13 +17,10 @@ import { useToast } from '@/hooks/use-toast'; // Import useToast
 export default function DashboardPage() {
     const { user, loading, role, setRole } = useAuth();
     const { toast } = useToast(); // Get toast function
-    // const router = useRouter(); // Keep commented out as login is bypassed
-
-    // Local state to manage role selection in demo mode
-    // Initialize with the role from AuthContext
+    // Local state to manage role selection in demo mode, initialized with role from AuthContext
     const [selectedRole, setSelectedRole] = useState<UserRole>(role);
 
-    // Update local state if role from context changes (e.g., on login/logout)
+    // Update local state if role from context changes (e.g., on login/logout or initial load)
     useEffect(() => {
         setSelectedRole(role);
     }, [role]);
@@ -36,7 +33,7 @@ export default function DashboardPage() {
              console.log("Role selected in dropdown:", validRole);
              // Add check to ensure setRole is a function before calling
              if (typeof setRole === 'function') {
-                setRole(validRole); // Update role in AuthContext
+                setRole(validRole); // Update role in AuthContext (and consequently the derived userId)
              } else {
                  console.error("setRole is not available or not a function in AuthContext.");
                  toast({
@@ -45,19 +42,18 @@ export default function DashboardPage() {
                     variant: "destructive",
                  });
              }
-            setSelectedRole(validRole); // Update local state
+            setSelectedRole(validRole); // Update local state to immediately reflect change
         } else {
             console.warn("Invalid role selected:", newRole);
-            // Optionally reset to a default or handle error
              if (typeof setRole === 'function') {
-                setRole(null);
+                setRole(null); // Reset context role if invalid selection
              }
-            setSelectedRole(null);
+            setSelectedRole(null); // Reset local state
         }
     };
 
 
-    // Show loading state
+    // Show loading state while checking auth status
     if (loading) {
         return (
              <div className="flex flex-col min-h-screen">
@@ -77,16 +73,9 @@ export default function DashboardPage() {
         );
     }
 
-    // Login bypass: We check the role directly instead of redirecting
-    // if (!loading && !user) {
-    //     // Redirect logic is bypassed
-    //     // router.push('/login');
-    //     // return null; // Or a message indicating login is required in a real scenario
-    // }
-
 
   const renderDashboardContent = () => {
-    console.log("Rendering dashboard for role:", selectedRole);
+    console.log("Rendering dashboard for role:", selectedRole); // Use selectedRole for rendering
     switch (selectedRole) {
       case 'student':
         return <StudentDashboard />;
@@ -120,9 +109,9 @@ export default function DashboardPage() {
                 <CardContent className="flex items-center space-x-4">
                      <Label htmlFor="role-select" className="text-lg font-medium text-primary">Select Role:</Label>
                      <Select
-                        value={selectedRole ?? ''}
+                        value={selectedRole ?? ''} // Ensure value matches the state
                         onValueChange={handleRoleChange}
-                        // disabled={!!user} // Disable if user is logged in, as role should come from backend
+                        // disabled={!!user} // Keep enabled for demo purposes
                      >
                         <SelectTrigger id="role-select" className="w-[180px]">
                             <SelectValue placeholder="Select role" />
@@ -133,7 +122,7 @@ export default function DashboardPage() {
                             <SelectItem value="admin">Admin</SelectItem>
                         </SelectContent>
                      </Select>
-                     <p className="text-sm text-muted-foreground">(This selector is for demo purposes as login is currently bypassed. In a real app, roles are assigned upon login.)</p>
+                     <p className="text-sm text-muted-foreground">(This selector allows viewing different dashboards in this demo.)</p>
                 </CardContent>
              </Card>
 
