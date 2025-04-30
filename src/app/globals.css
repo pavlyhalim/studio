@@ -48,6 +48,13 @@ body {
     /* Define font variables */
     --font-sans: 'Geist Sans', sans-serif;
     --font-mono: 'Geist Mono', monospace;
+
+    /* Define success colors (example: shades of green) */
+    --success: 142 76% 36%; /* Green */
+    --success-foreground: 0 0% 100%; /* White */
+    --success-border: 142 76% 80%; /* Lighter Green for border */
+    --success-background: 142 76% 96%; /* Very Light Green for background */
+
   }
   .dark {
     /* Define dark theme colors based on the requested palette */
@@ -83,6 +90,12 @@ body {
     --sidebar-accent-foreground: 0 0% 100%; /* White */
     --sidebar-border: 205 100% 20%; /* Darker Blue */
     --sidebar-ring: 180 100% 40%; /* Even Brighter Teal */
+
+    /* Define dark theme success colors */
+    --success: 142 60% 50%; /* Brighter Green */
+    --success-foreground: 0 0% 10%; /* Dark text */
+    --success-border: 142 60% 30%; /* Darker Green border */
+    --success-background: 142 90% 15%; /* Dark Green background */
   }
 }
 
