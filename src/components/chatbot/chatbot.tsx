@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Bot, User as UserIcon } from 'lucide-react';
+import { Send, Bot, User as UserIcon, AlertTriangle } from 'lucide-react'; // Added AlertTriangle
 import { studentAIQueryWithToolSelector } from '@/ai/flows/ai-query-tool-selector'; // Import the Genkit flow
 import { useAuth } from '@/hooks/use-auth'; // Import useAuth
 import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert
 
 interface Message {
   id: string;
@@ -20,11 +21,21 @@ interface Message {
 }
 
 export function Chatbot() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([
+    // Initial greeting message from AI
+    {
+        id: 'initial-ai-greeting',
+        text: 'Hello! Ask me anything about your course. Please note: Login is required to save chat history or use personalized features.',
+        sender: 'ai',
+        timestamp: new Date(),
+    }
+  ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { user, loading: authLoading } = useAuth(); // Get user and auth loading state
+
+  const isLoggedIn = !!user; // Check if user is logged in
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return "U";
@@ -45,7 +56,8 @@ export function Chatbot() {
   const handleSend = async (e?: FormEvent<HTMLFormElement>) => {
     e?.preventDefault(); // Prevent default form submission if event exists
     const text = input.trim();
-    if (!text || isLoading || authLoading) return; // Prevent sending if loading or user not loaded
+    // Prevent sending if not logged in, loading, auth checking, or no input
+    if (!isLoggedIn || !text || isLoading || authLoading) return;
 
     const userMessage: Message = {
       id: Date.now().toString() + '-user',
@@ -73,7 +85,7 @@ export function Chatbot() {
       console.error("AI Query Error:", error);
       const errorMessage: Message = {
         id: Date.now().toString() + '-error',
-        text: "Sorry, I encountered an error. Please try again.",
+        text: "Sorry, I encountered an error processing your request. Please try again.",
         sender: 'ai',
         timestamp: new Date(),
       };
@@ -113,7 +125,7 @@ export function Chatbot() {
                 </Avatar>
               )}
               <div
-                className={`rounded-lg p-3 max-w-[75%] ${
+                className={`rounded-lg p-3 max-w-[75%] shadow-sm ${ // Added shadow-sm for better visibility
                   message.sender === 'user'
                     ? 'bg-accent text-accent-foreground'
                     : 'bg-secondary text-secondary-foreground'
@@ -124,7 +136,7 @@ export function Chatbot() {
                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                  </p>
               </div>
-              {message.sender === 'user' && !authLoading && (
+              {message.sender === 'user' && !authLoading && user && ( // Ensure user exists
                 <Avatar className="h-8 w-8 border border-accent/50">
                   <AvatarImage src={user?.photoURL ?? undefined} alt={user?.displayName ?? 'User'} />
                   <AvatarFallback className="bg-accent text-accent-foreground">
@@ -132,8 +144,13 @@ export function Chatbot() {
                   </AvatarFallback>
                 </Avatar>
               )}
-               {message.sender === 'user' && authLoading && (
-                 <Skeleton className="h-8 w-8 rounded-full" />
+              {/* Render generic user icon if message sender is user but user data is missing (e.g., logged out but message exists somehow) */}
+               {message.sender === 'user' && (authLoading || !user) && (
+                 <Avatar className="h-8 w-8 border border-accent/50">
+                    <AvatarFallback className="bg-muted text-muted-foreground">
+                        <UserIcon size={18} />
+                    </AvatarFallback>
+                 </Avatar>
                )}
             </div>
           ))}
@@ -144,25 +161,40 @@ export function Chatbot() {
                    <Bot size={18} />
                  </AvatarFallback>
                </Avatar>
-               <div className="rounded-lg p-3 bg-secondary text-secondary-foreground">
-                  <Skeleton className="h-4 w-20" />
+               <div className="rounded-lg p-3 bg-secondary text-secondary-foreground shadow-sm">
+                  <Skeleton className="h-4 w-16" /> {/* Adjusted width */}
+                  <Skeleton className="h-4 w-12 mt-1" /> {/* Added second line */}
                 </div>
              </div>
            )}
         </ScrollArea>
       </CardContent>
-      <CardFooter className="border-t p-4">
+      <CardFooter className="border-t p-4 flex flex-col items-start gap-2">
+         {!isLoggedIn && !authLoading && ( // Show login reminder if not logged in and auth check is complete
+            <Alert variant="default" className="w-full bg-secondary/50 border-secondary">
+              <AlertTriangle className="h-4 w-4 text-secondary-foreground" />
+              <AlertTitle className="text-secondary-foreground">Login Required</AlertTitle>
+              <AlertDescription className="text-secondary-foreground/80">
+                Please log in to send messages and interact with the AI assistant.
+              </AlertDescription>
+            </Alert>
+          )}
         <form onSubmit={handleSend} className="flex w-full items-center space-x-2">
           <Input
             id="chat-input"
-            placeholder="Ask a question..."
+            placeholder={isLoggedIn ? "Ask a question..." : "Please log in to chat"}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            disabled={isLoading || authLoading} // Disable input when loading auth or AI response
+            disabled={isLoading || authLoading || !isLoggedIn} // Disable input when loading, checking auth, or not logged in
             className="flex-1"
             autoComplete="off"
           />
-          <Button type="submit" size="icon" disabled={isLoading || !input.trim() || authLoading}>
+          <Button
+            type="submit"
+            size="icon"
+            disabled={isLoading || !input.trim() || authLoading || !isLoggedIn} // Also disable button if not logged in
+            aria-label="Send message" // Added aria-label
+            >
             <Send className="h-4 w-4" />
             <span className="sr-only">Send</span>
           </Button>

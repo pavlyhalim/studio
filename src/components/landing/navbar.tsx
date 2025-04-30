@@ -21,22 +21,30 @@ export function Navbar() {
   };
 
   return (
-    <nav className="bg-background shadow-sm">
+    <nav className="bg-background shadow-sm sticky top-0 z-50"> {/* Added sticky positioning */}
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         <Link href="/" className="text-2xl font-bold text-primary">
           ALANT Lite
         </Link>
         <div className="flex items-center space-x-4">
+          {/* Always show Dashboard link */}
+           <Link href="/dashboard" legacyBehavior passHref>
+                <Button variant="ghost" className="hidden sm:inline-flex"> {/* Hide on small screens if needed */}
+                    <LayoutDashboard className="mr-2 h-4 w-4" />
+                    Dashboard
+                </Button>
+           </Link>
+
           {loading ? (
              <div className="flex items-center space-x-4">
-                <Skeleton className="h-8 w-24 rounded-md" />
+                <Skeleton className="h-8 w-20 rounded-md" /> {/* Adjusted width */}
                 <Skeleton className="h-10 w-10 rounded-full" />
             </div>
           ) : user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                   <Avatar className="h-10 w-10">
+                   <Avatar className="h-10 w-10 border"> {/* Added border */}
                     <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? 'User'} />
                     <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
                   </Avatar>
@@ -53,7 +61,7 @@ export function Navbar() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                  <DropdownMenuItem asChild>
-                   {/* TODO: Link to actual dashboard based on role */}
+                   {/* Link to actual dashboard */}
                    <Link href="/dashboard">
                      <LayoutDashboard className="mr-2 h-4 w-4" />
                      <span>Dashboard</span>
@@ -68,7 +76,7 @@ export function Navbar() {
                    <span>Settings</span>
                  </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut}>
+                <DropdownMenuItem onClick={signOut} className="cursor-pointer"> {/* Added cursor-pointer */}
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Log out</span>
                 </DropdownMenuItem>
@@ -76,7 +84,10 @@ export function Navbar() {
             </DropdownMenu>
           ) : (
              <>
-              <Button variant="outline" onClick={signInWithGoogle}>Log In</Button>
+              {/* Link Login button to the login page */}
+              <Link href="/login" passHref legacyBehavior>
+                <Button variant="outline">Log In</Button>
+              </Link>
                {/* Placeholder Sign Up button - replace with actual sign-up flow later */}
               <Button variant="default" disabled>Sign Up</Button>
             </>

@@ -1,6 +1,7 @@
 
 import { Button } from "@/components/ui/button";
 import Image from 'next/image';
+import Link from 'next/link'; // Import Link
 
 export function HeroSection() {
   return (
@@ -14,9 +15,12 @@ export function HeroSection() {
             ALANT Lite leverages cutting-edge AI to provide personalized study plans, instant answers, and enhanced course materials. Elevate your learning experience today.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-             {/* Placeholder buttons - replace onClick/href later */}
-            <Button size="lg" variant="default" className="bg-accent hover:bg-accent/90">Get Started</Button>
-            <Button size="lg" variant="outline">Learn More</Button>
+             {/* Link 'Get Started' button to dashboard */}
+            <Link href="/dashboard" passHref legacyBehavior>
+              <Button size="lg" variant="default" className="bg-accent hover:bg-accent/90">Get Started</Button>
+            </Link>
+            {/* Placeholder Learn More button */}
+            <Button size="lg" variant="outline" disabled>Learn More</Button>
           </div>
         </div>
         <div className="relative aspect-video rounded-lg overflow-hidden shadow-xl">
@@ -25,7 +29,8 @@ export function HeroSection() {
               alt="AI Learning Platform Illustration"
               layout="fill"
               objectFit="cover"
-              data-ai-hint="artificial intelligence learning education technology"
+              data-ai-hint="artificial intelligence learning education technology abstract" // Added abstract hint
+              priority // Add priority for LCP optimization
             />
              <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
         </div>
