@@ -1,3 +1,4 @@
+
 "use client"; // Required for useState, useEffect, and interactive components
 
 import { useState, useEffect } from 'react';
@@ -11,9 +12,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 export default function DashboardPage() {
     const { user, loading, role, setRole } = useAuth();
+    const { toast } = useToast(); // Get toast function
     // const router = useRouter(); // Keep commented out as login is bypassed
 
     // Local state to manage role selection in demo mode
@@ -31,12 +34,24 @@ export default function DashboardPage() {
         const validRole = newRole as UserRole;
         if (validRole && ['student', 'professor', 'admin'].includes(validRole)) {
              console.log("Role selected in dropdown:", validRole);
-            setRole(validRole); // Update role in AuthContext
+             // Add check to ensure setRole is a function before calling
+             if (typeof setRole === 'function') {
+                setRole(validRole); // Update role in AuthContext
+             } else {
+                 console.error("setRole is not available or not a function in AuthContext.");
+                 toast({
+                    title: "Error",
+                    description: "Could not change role.",
+                    variant: "destructive",
+                 });
+             }
             setSelectedRole(validRole); // Update local state
         } else {
             console.warn("Invalid role selected:", newRole);
             // Optionally reset to a default or handle error
-            setRole(null);
+             if (typeof setRole === 'function') {
+                setRole(null);
+             }
             setSelectedRole(null);
         }
     };
@@ -130,3 +145,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
