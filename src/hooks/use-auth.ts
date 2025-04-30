@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useContext } from 'react';
@@ -8,9 +9,10 @@ export const useAuth = () => {
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
-  // Explicitly return the context fields including role and setRole
+  // Explicitly return the context fields including role, setRole, and userId
   return {
     user: context.user,
+    userId: context.userId, // Add userId
     loading: context.loading,
     signInWithGoogle: context.signInWithGoogle,
     signOut: context.signOut,

@@ -1,16 +1,19 @@
+
 "use client";
 
 import type { User } from "firebase/auth";
-import { createContext, useEffect, useState, type ReactNode, useCallback } from 'react';
+import { createContext, useEffect, useState, type ReactNode, useCallback, useMemo } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
+import { sampleUsers } from "@/lib/sample-data"; // Import sample users
 
 // Define possible roles
 export type UserRole = 'student' | 'professor' | 'admin' | null;
 
 interface AuthContextType {
-  user: User | null;
+  user: User | null; // Firebase Auth user
+  userId: string | null; // Sample User ID for demo
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -22,47 +25,60 @@ interface AuthContextType {
 // Initial role for demo purposes when login is bypassed
 const initialDemoRole: UserRole = 'student'; // Default to student for demo
 
+// Find initial sample user based on initial role
+const getInitialUserId = (role: UserRole): string | null => {
+    const user = sampleUsers.find(u => u.role === role);
+    return user?.id ?? null;
+}
+
+
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null); // Firebase User
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   // Initialize role state, defaulting for demo if login is bypassed
   const [role, setRoleInternal] = useState<UserRole>(initialDemoRole); // Use internal setter
+  // Sample User ID based on role
+  const [userId, setUserId] = useState<string | null>(getInitialUserId(initialDemoRole));
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
       if (currentUser) {
-        // TODO: In a real application, fetch the user's role from your backend/database here
-        // For demo, we might keep the manually set role or default to 'student'
-        // Example: fetchUserRole(currentUser.uid).then(setRoleInternal);
-        // Keeping manually set role for demo:
-         console.log("Auth state changed, user logged in, retaining role:", role);
-         // Or default if needed: setRoleInternal('student');
+        // In a real app, fetch role and userId from backend based on currentUser.uid
+        // For demo, we retain the manually set role and derive userId
+        const derivedUserId = getInitialUserId(role);
+        setUserId(derivedUserId);
+        console.log("Auth state changed, user logged in, retaining role:", role, "setting userId:", derivedUserId);
+        // Example: fetchUserData(currentUser.uid).then(data => { setRoleInternal(data.role); setUserId(data.id); });
       } else {
-        // Reset role on sign out or if no user
-        setRoleInternal(initialDemoRole); // Reset to default demo role when logged out
+        // Reset role and userId on sign out or if no user
+        setRoleInternal(initialDemoRole); // Reset to default demo role
+        setUserId(getInitialUserId(initialDemoRole)); // Reset userId based on default demo role
       }
     });
 
     // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [role]); // Added role to dependency array if needed for fetching based on role state
+    // Only re-run if Firebase user state changes (not on manual role change)
+  }, []); // Removed role dependency to avoid loop with setRole callback
 
   const signInWithGoogle = async () => {
     setLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      // After successful sign-in, Firebase automatically updates the user state via onAuthStateChanged
-      // The useEffect hook will handle setting loading to false and potentially fetching the role
+      // Firebase automatically updates user via onAuthStateChanged
        toast({ title: "Successfully signed in with Google." });
-       // TODO: Fetch role after sign in
-       // fetchUserRole(result.user.uid).then(setRoleInternal);
-       // For demo, setting a default role after login:
-       setRoleInternal('student'); // Or fetch based on some logic if needed
+       // TODO: Fetch role & userId after sign in from backend
+       // fetchUserData(result.user.uid).then(data => { setRoleInternal(data.role); setUserId(data.id); });
+       // For demo, setting a default role & userId after login:
+       const demoRole = 'student'; // Default role after login for demo
+       setRoleInternal(demoRole);
+       setUserId(getInitialUserId(demoRole));
     } catch (error) {
       console.error("Google Sign-In Error:", error);
       toast({
@@ -72,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       setLoading(false); // Ensure loading is false on error
       setRoleInternal(null); // Reset role on error
+      setUserId(null); // Reset userId on error
     }
   };
 
@@ -80,8 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await firebaseSignOut(auth);
       toast({ title: "Successfully signed out." });
-      // setUser(null); // Firebase handles this via onAuthStateChanged
-      // Role is reset by onAuthStateChanged listener
+      // User, role, and userId reset is handled by onAuthStateChanged listener
     } catch (error) {
       console.error("Sign Out Error:", error);
        toast({
@@ -89,27 +105,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "An error occurred during sign out. Please try again.",
         variant: "destructive",
       });
-    } finally {
-        // Loading and role state reset is handled by onAuthStateChanged
-        // setLoading(false); // Can be removed if onAuthStateChanged reliably sets it
+      // Ensure loading is false even on error, though onAuthStateChanged should handle it
+      setLoading(false);
     }
+    // Loading and state reset is handled by onAuthStateChanged
   };
 
   // Wrapper for setting role, used for demo selector
+  // Also updates the sample userId
   const setRole = useCallback((newRole: UserRole) => {
-    console.log("Setting role (demo):", newRole);
+    const newUserId = getInitialUserId(newRole);
+    console.log("Setting role (demo):", newRole, "setting userId:", newUserId);
     setRoleInternal(newRole);
+    setUserId(newUserId); // Update userId when role changes
   }, []);
 
 
-  const value = {
+  const value = useMemo(() => ({
     user,
+    userId, // Expose the sample userId
     loading,
     signInWithGoogle,
     signOut,
     role,
     setRole, // Expose setRole for demo purposes
-  };
+  }), [user, userId, loading, signInWithGoogle, signOut, role, setRole]);
 
   // Render children only after initial auth check is complete
   // Or show a global loading indicator

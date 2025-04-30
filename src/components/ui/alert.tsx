@@ -1,3 +1,4 @@
+
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { CheckCircle } from "lucide-react" // Import an icon for success
@@ -12,7 +13,7 @@ const alertVariants = cva(
         default: "bg-background text-foreground",
         destructive:
           "border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive",
-        success: // Add success variant
+        success: // Use HSL variables for success variant
           "border-[hsl(var(--success-border))] bg-[hsl(var(--success-background))] text-[hsl(var(--success))] dark:border-[hsl(var(--success-border))] dark:bg-[hsl(var(--success-background))] dark:text-[hsl(var(--success))] [&>svg]:text-[hsl(var(--success))]",
       },
     },
@@ -25,20 +26,27 @@ const alertVariants = cva(
 const Alert = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement> & VariantProps<typeof alertVariants>
->(({ className, variant, children, ...props }, ref) => ( // Accept children
-  <div
-    ref={ref}
-    role="alert"
-    className={cn(alertVariants({ variant }), className)}
-    {...props}
-  >
-      {/* Automatically add success icon for success variant if not provided */}
-      {variant === 'success' && !React.Children.toArray(children).some(child => React.isValidElement(child) && child.type === CheckCircle) && (
-        <CheckCircle className="h-4 w-4" />
-      )}
-      {children}
-  </div>
-))
+>(({ className, variant, children, ...props }, ref) => {
+    // Check if children explicitly contains a CheckCircle icon
+    const hasSuccessIcon = React.Children.toArray(children).some(
+        (child) => React.isValidElement(child) && child.type === CheckCircle
+    );
+
+    return (
+      <div
+        ref={ref}
+        role="alert"
+        className={cn(alertVariants({ variant }), className)}
+        {...props}
+      >
+        {/* Automatically add success icon for success variant if not already present */}
+        {variant === 'success' && !hasSuccessIcon && (
+            <CheckCircle className="h-4 w-4" /> // Add the icon
+        )}
+        {children}
+      </div>
+    );
+})
 Alert.displayName = "Alert"
 
 const AlertTitle = React.forwardRef<

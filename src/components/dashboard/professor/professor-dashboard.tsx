@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,8 +12,12 @@ import { reviewAIResponse, ReviewAIResponseInput } from '@/ai/flows/professor-re
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from '@/hooks/use-auth'; // Import useAuth
+import { sampleCourses, getCoursesByProfessor, type Course } from '@/lib/sample-data'; // Import sample data and helper
+import { ScrollArea } from '@/components/ui/scroll-area'; // Import ScrollArea
 
 export function ProfessorDashboard() {
+  const { userId } = useAuth(); // Get sample professor userId
   const [question, setQuestion] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [courseMaterial, setCourseMaterial] = useState('');
@@ -25,7 +30,19 @@ export function ProfessorDashboard() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
 
+  const [professorCourses, setProfessorCourses] = useState<Course[]>([]);
+
   const { toast } = useToast();
+
+   useEffect(() => {
+    if (userId) {
+        // Use the helper function to get courses for the current professor
+        setProfessorCourses(getCoursesByProfessor(userId));
+    } else {
+        setProfessorCourses([]); // Clear courses if no user ID
+    }
+   }, [userId]);
+
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,28 +98,20 @@ export function ProfessorDashboard() {
     setUploadSuccess(null);
 
     // TODO: Implement actual file upload logic here
-    // This typically involves sending the file to a server endpoint or cloud storage
     console.log("Uploading file:", selectedFile.name, selectedFile.type);
-
-    // Simulate upload process
     await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate network delay
-
-    // Simulate success or failure
-    const success = Math.random() > 0.3; // Simulate 70% success rate
+    const success = Math.random() > 0.3;
 
     if (success) {
         setUploadSuccess(`File "${selectedFile.name}" uploaded successfully (simulated).`);
         toast({ title: "Upload Successful", description: `File "${selectedFile.name}" uploaded.` });
-        setSelectedFile(null); // Clear file input after successful upload
-        // Clear the file input visually if needed (requires managing input value or using a key)
+        setSelectedFile(null);
         const fileInput = document.getElementById('file-upload') as HTMLInputElement;
         if (fileInput) fileInput.value = '';
-
     } else {
         setUploadError("File upload failed (simulated). Please try again.");
         toast({ title: "Upload Failed", variant: "destructive" });
     }
-
     setIsUploading(false);
   };
 
@@ -110,27 +119,31 @@ export function ProfessorDashboard() {
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-primary">Professor Dashboard</h1>
 
-      {/* Example Professor-Specific Widgets */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>My Courses</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">List of courses taught...</p>
-            {/* TODO: List courses the professor teaches */}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Student Engagement</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Analytics placeholder...</p>
-            {/* TODO: Display engagement analytics */}
-          </CardContent>
-        </Card>
-      </div>
+      {/* My Courses Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>My Courses</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {professorCourses.length > 0 ? (
+            <ScrollArea className="h-48"> {/* Added ScrollArea */}
+              <ul className="space-y-2">
+                {professorCourses.map(course => (
+                  <li key={course.id} className="p-3 border rounded-md bg-secondary/20 shadow-sm">
+                    <h3 className="font-semibold">{course.title}</h3>
+                    <p className="text-sm text-muted-foreground">{course.description}</p>
+                    {/* TODO: Add link/button to manage course */}
+                     <Button variant="link" size="sm" className="p-0 h-auto mt-1" disabled>Manage Course</Button>
+                  </li>
+                ))}
+              </ul>
+            </ScrollArea>
+          ) : (
+            <p className="text-muted-foreground">You are not assigned to any courses.</p>
+          )}
+        </CardContent>
+      </Card>
+
 
       {/* AI Response Review Section */}
       <Card>
@@ -209,8 +222,8 @@ export function ProfessorDashboard() {
                  </Alert>
              )}
              {uploadSuccess && (
-                 <Alert variant="default" className="bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700">
-                   {/* Consider adding a CheckCircle icon */}
+                 <Alert variant="default" className="bg-success-background border-success-border text-success dark:bg-success-background dark:border-success-border dark:text-success">
+                   {/* Use success variant from globals.css */}
                    <AlertTitle>Upload Successful</AlertTitle>
                    <AlertDescription>{uploadSuccess}</AlertDescription>
                  </Alert>
@@ -224,17 +237,27 @@ export function ProfessorDashboard() {
         </CardContent>
       </Card>
 
-      {/* Other professor-specific sections */}
-      {/* e.g., Forum Management, Live Lecture Tools Control */}
-       <Card>
-        <CardHeader>
-          <CardTitle>Forum Management</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">Forum management tools placeholder...</p>
-          {/* TODO: Implement Forum Management */}
-        </CardContent>
-      </Card>
+      {/* Other placeholder widgets */}
+       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Student Engagement</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">Analytics placeholder...</p>
+            {/* TODO: Display engagement analytics */}
+          </CardContent>
+        </Card>
+         <Card>
+            <CardHeader>
+            <CardTitle>Forum Management</CardTitle>
+            </CardHeader>
+            <CardContent>
+            <p className="text-muted-foreground">Forum management tools placeholder...</p>
+            {/* TODO: Implement Forum Management */}
+            </CardContent>
+        </Card>
+       </div>
     </div>
   );
 }
