@@ -14,7 +14,13 @@ export function CallToActionSection() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
            {/* Placeholder buttons - replace onClick/href later */}
           <Button size="lg" variant="secondary" className="text-primary hover:bg-secondary/90">Sign Up Now</Button>
-          <Button size="lg" variant="outline" className="border-primary-foreground/50 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground">Request a Demo</Button>
+          <Button
+            size="lg"
+            variant="ghost" // Changed from outline
+            className="border border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary" // Updated classes for visibility
+          >
+            Request a Demo
+          </Button>
         </div>
       </div>
     </section>
