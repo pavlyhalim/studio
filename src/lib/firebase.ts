@@ -26,25 +26,20 @@ const firebaseConfig = {
   };
 
 // --- Configuration Validation ---
-// Check if the effective config values are still placeholders
-const isConfigPlaceholder =
+// Basic check if essential values are missing or are still the default placeholders
+const isConfigLikelyInvalid =
     !firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY" ||
     !firebaseConfig.authDomain || firebaseConfig.authDomain.includes("YOUR_AUTH_DOMAIN") ||
-    !firebaseConfig.projectId || firebaseConfig.projectId === "YOUR_PROJECT_ID";
+    !firebaseConfig.projectId || firebaseConfig.projectId === "YOUR_PROJECT_ID" ||
+    !firebaseConfig.appId || firebaseConfig.appId === "YOUR_APP_ID";
 
-if (isConfigPlaceholder) {
-    console.error(
-        "🚨 CRITICAL FIREBASE CONFIG ERROR 🚨\n" +
-        "Firebase configuration values in src/lib/firebase.ts appear to be placeholders or missing.\n" +
-        "Authentication and other Firebase services WILL FAIL.\n" +
-        "1. Ensure Firebase Authentication is ENABLED in your Firebase Console.\n" +
-        "2. Update src/lib/firebase.ts with your ACTUAL Firebase project configuration OR set the corresponding NEXT_PUBLIC_FIREBASE_* environment variables (check your .env.local file).\n" +
+if (isConfigLikelyInvalid) {
+    console.warn( // Use warn instead of error to avoid breaking builds in some cases
+        "⚠️ Firebase Configuration Warning ⚠️\n" +
+        "Firebase configuration values in src/lib/firebase.ts might still be placeholders or missing.\n" +
+        "Please ensure you have correctly set the NEXT_PUBLIC_FIREBASE_* environment variables (e.g., in your .env file) or updated the firebaseConfig object directly.\n" +
         "Get your config from Firebase Console: Project settings > General > Your apps > Web app > Config."
     );
-    // Optionally, throw an error in development to halt execution
-    // if (process.env.NODE_ENV === 'development') {
-    //     throw new Error("Firebase configuration is missing or invalid. Please check src/lib/firebase.ts and your Firebase Console settings.");
-    // }
 }
 
 
@@ -52,13 +47,9 @@ if (isConfigPlaceholder) {
 let app: FirebaseApp | null = null; // Initialize as null
 if (!getApps().length) {
     try {
-        // Only attempt initialization if config seems valid (not a placeholder)
-        if (!isConfigPlaceholder) {
-             app = initializeApp(firebaseConfig);
-             console.log("Firebase app initialized successfully.");
-        } else {
-             console.error("Firebase initialization skipped due to invalid or placeholder configuration.");
-        }
+        // Attempt initialization regardless of the warning, let Firebase SDK handle invalid keys
+        app = initializeApp(firebaseConfig);
+        console.log("Firebase app initialized.");
     } catch (error) {
         console.error("Error initializing Firebase app:", error);
         // Provide a more user-friendly message in the UI if possible,
