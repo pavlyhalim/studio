@@ -1,44 +1,43 @@
+
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertTriangle, Loader2, Upload, PlusCircle, Download, Edit, Trash2, Send, FileText, Video, BarChart2 } from 'lucide-react'; // Added icons
-import { reviewAIResponse, ReviewAIResponseInput } from '@/ai/flows/professor-review-ai-responses'; // Import Genkit flow
+import { AlertTriangle, Loader2, Upload, PlusCircle, Download, Edit, Trash2, Send, FileText, Video, BarChart2 } from 'lucide-react';
+import { reviewAIResponse, ReviewAIResponseInput, ReviewAIResponseOutput } from '@/ai/flows/professor-review-ai-responses';
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import {
-    sampleCourses as initialSampleCourses, // Use initial data for initialization
-    sampleUploadedFiles as initialSampleFiles, // Use initial data for initialization
-    sampleAnnouncements as initialSampleAnnouncements, // Use initial data for initialization
+    initialSampleCourses,
+    initialSampleUsers,
+    initialSampleEnrollments,
+    initialSampleAssignments,
+    initialSampleGrades,
+    initialSampleAnnouncements,
+    initialSampleUploadedFiles,
     getCoursesByProfessor,
-    getFilesByProfessor, // Can be used for initial load logic
-    getAnnouncementsForProfessor, // Can be used for initial load logic
-    addSampleAnnouncement,
-    addSampleFile,
-    sampleAssignments, // Import assignments
-    sampleGrades, // Import grades
-    getStudentsInCourse, // Import student getter
-    sampleUsers, // Import sampleUsers
-    updateSampleAnnouncements, // Import update function
-    updateSampleFiles, // Import update function
+    getStudentsInCourse,
+    createSampleAnnouncement,
+    createSampleFile,
     type Course,
-    type UploadedFile,
-    type Announcement,
+    type User,
+    type Enrollment,
     type Assignment,
     type Grade,
-    type User
+    type Announcement,
+    type UploadedFile
 } from '@/lib/sample-data';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { format } from 'date-fns'; // For date formatting
+import { format, formatDistanceToNow } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // For course selection
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"; // For grades
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,14 +52,14 @@ import {
 
 
 export function ProfessorDashboard() {
-  const { userId } = useAuth(); // Get sample professor userId
+  const { userId } = useAuth(); // Get sample professor userId from context
   const { toast } = useToast();
 
   // AI Review State
   const [question, setQuestion] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [courseMaterial, setCourseMaterial] = useState('');
-  const [reviewResult, setReviewResult] = useState<any>(null); // TODO: Use ReviewAIResponseOutput type
+  const [reviewResult, setReviewResult] = useState<ReviewAIResponseOutput | null>(null);
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
@@ -69,77 +68,82 @@ export function ProfessorDashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
-  // No need for uploadCourseId state, use selectedCourseManageId
 
   // Announcement State
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementContent, setAnnouncementContent] = useState('');
-  // No need for announcementCourseId state, use selectedCourseManageId
   const [isPostingAnnouncement, setIsPostingAnnouncement] = useState(false);
 
-  // Course & Data State - Initialize with current global sample data
+  // Course & Data State - Initialize with data relevant to the professor
   const [professorCourses, setProfessorCourses] = useState<Course[]>([]);
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(initialSampleFiles);
-  const [announcements, setAnnouncements] = useState<Announcement[]>(initialSampleAnnouncements);
-  const [assignments, setAssignments] = useState<Assignment[]>([]); // State for assignments
-  const [grades, setGrades] = useState<Grade[]>([]); // State for grades
-  const [students, setStudents] = useState<User[]>([]); // State for students in selected course
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [grades, setGrades] = useState<Grade[]>([]);
+  const [students, setStudents] = useState<User[]>([]);
 
   // Selected Course for Management View
   const [selectedCourseManageId, setSelectedCourseManageId] = useState<string | null>(null);
 
-   // Effect to initialize professor's courses and set initial management view
+  // Memoize professor's name
+  const professorName = useMemo(() => {
+    return initialSampleUsers.find(u => u.id === userId)?.name ?? 'Professor';
+  }, [userId]);
+
+   // Effect to initialize professor's data based on userId
    useEffect(() => {
     if (userId) {
-        const courses = getCoursesByProfessor(userId); // Reads from potentially modified global state
+        const courses = getCoursesByProfessor(userId); // Reads from initial data
         setProfessorCourses(courses);
 
-        // Automatically select the first course for management view if available
+        // Set initial data filtered for this professor
+        setUploadedFiles(initialSampleUploadedFiles.filter(f => f.professorId === userId).sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime()));
+        setAnnouncements(initialSampleAnnouncements.filter(a => a.professorId === userId).sort((a, b) => b.postedDate.getTime() - a.postedDate.getTime()));
+
+        // Automatically select the first course for management view if available and none selected
         if (courses.length > 0 && !selectedCourseManageId) {
             setSelectedCourseManageId(courses[0].id);
         } else if (courses.length === 0) {
              setSelectedCourseManageId(null); // Reset if professor has no courses
         }
-        // Load initial files and announcements for the professor (reads from global state)
-        setUploadedFiles(initialSampleFiles.filter(f => f.professorId === userId).sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime()));
-        setAnnouncements(initialSampleAnnouncements.filter(a => a.professorId === userId).sort((a, b) => b.postedDate.getTime() - a.postedDate.getTime()));
-
     } else {
+        // Reset state if no userId
         setProfessorCourses([]);
         setSelectedCourseManageId(null);
         setUploadedFiles([]);
         setAnnouncements([]);
+        setAssignments([]);
+        setGrades([]);
+        setStudents([]);
     }
-   // Run only when userId changes or if selectedCourseManageId becomes null (e.g., last course deleted)
-   }, [userId, selectedCourseManageId]);
+   // Run only when userId changes
+   }, [userId]);
 
-   // Effect to load data when selected course for management changes
+   // Effect to load detailed data when selected course for management changes
    useEffect(() => {
         if(selectedCourseManageId) {
-            // Load assignments, grades, and students for the selected course
-            // These read from the global sample data arrays
-            setAssignments(sampleAssignments.filter(a => a.courseId === selectedCourseManageId));
-            setGrades(sampleGrades.filter(g => g.courseId === selectedCourseManageId));
-            setStudents(getStudentsInCourse(selectedCourseManageId)); // Reads from global users/enrollments
+            // Load assignments, grades, and students for the selected course from initial data
+            setAssignments(initialSampleAssignments.filter(a => a.courseId === selectedCourseManageId));
+            setGrades(initialSampleGrades.filter(g => g.courseId === selectedCourseManageId));
+            setStudents(getStudentsInCourse(selectedCourseManageId)); // Reads from initial users/enrollments
 
-             // Reload announcements and files specifically for this course from current state
-             // This ensures the lists are up-to-date if items were added/deleted in other views
-             // (Although adding/deleting currently updates the global state directly in this demo)
-            // setAnnouncements(initialSampleAnnouncements.filter(a => a.professorId === userId && a.courseId === selectedCourseManageId).sort((a, b) => b.postedDate.getTime() - a.postedDate.getTime()));
-            // setUploadedFiles(initialSampleFiles.filter(f => f.professorId === userId && f.courseId === selectedCourseManageId).sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime()));
+            // Filter existing local announcements & files state for the selected course
+            // No need to re-read from initialSample... unless we expect external updates
+            // setAnnouncements(prev => prev.filter(a => a.courseId === selectedCourseManageId));
+            // setUploadedFiles(prev => prev.filter(f => f.courseId === selectedCourseManageId));
 
         } else {
+            // Clear detailed data if no course is selected
             setAssignments([]);
             setGrades([]);
             setStudents([]);
-            // Optionally clear announcement/file inputs if no course is selected
+            // Optionally clear input fields related to course management
             setAnnouncementTitle('');
             setAnnouncementContent('');
             setSelectedFile(null);
-
         }
    // Rerun whenever the selected course ID changes
-   }, [selectedCourseManageId, userId]); // Added userId dependency
+   }, [selectedCourseManageId]);
 
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
@@ -180,7 +184,6 @@ export function ProfessorDashboard() {
       setUploadError("Please select a file to upload.");
       return;
     }
-    // Use the selected course ID for management when uploading from that section
     const targetCourseId = selectedCourseManageId;
     if (!targetCourseId) {
       setUploadError("No course selected to upload the file to.");
@@ -196,30 +199,31 @@ export function ProfessorDashboard() {
     setUploadError(null);
     setUploadSuccess(null);
 
-    // Simulate upload
+    // Simulate upload process
+    console.log(`Simulating upload of ${selectedFile.name} to course ${targetCourseId}...`);
     await new Promise(resolve => setTimeout(resolve, 1500));
-    const success = Math.random() > 0.2; // Simulate success/failure
+    const success = Math.random() > 0.1; // High success rate for demo
 
     if (success) {
-        const newFileData: Omit<UploadedFile, 'id' | 'uploadDate'> = {
-            courseId: targetCourseId, // Use the correct course ID
+        // Simulate creating file data (doesn't mutate global state)
+        const newFileData = createSampleFile({
+            courseId: targetCourseId,
             professorId: userId,
             fileName: selectedFile.name,
-            fileType: selectedFile.type || 'unknown', // Handle unknown type
-            url: '#', // Placeholder URL
+            fileType: selectedFile.type || 'unknown',
+            url: URL.createObjectURL(selectedFile), // Temporary local URL for demo preview/download
             sizeKB: Math.round(selectedFile.size / 1024),
-        };
-        // addSampleFile mutates global state and returns the new file
-        const addedFile = addSampleFile(newFileData);
-        // Update local state immutably
-        setUploadedFiles(prev => [addedFile, ...prev].sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime()));
-        // Note: updateSampleFiles(initialSampleFiles) is not needed as addSampleFile modified it
+        });
 
-        const courseTitle = initialSampleCourses.find(c => c.id === targetCourseId)?.title ?? 'the course';
+        // Update local state immutably
+        setUploadedFiles(prev => [newFileData, ...prev].sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime()));
+
+        const courseTitle = professorCourses.find(c => c.id === targetCourseId)?.title ?? 'the course';
         setUploadSuccess(`File "${selectedFile.name}" uploaded to course "${courseTitle}" (simulated).`);
         toast({ title: "Upload Successful", description: `File "${selectedFile.name}" uploaded.` });
         setSelectedFile(null); // Reset file input state
-        // Clear the specific file input used
+
+        // Clear the specific file input visually
         const fileInputManage = document.getElementById('file-upload-manage') as HTMLInputElement;
         if (fileInputManage) fileInputManage.value = '';
 
@@ -232,7 +236,6 @@ export function ProfessorDashboard() {
 
   const handlePostAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Use the selected course ID for management when posting from that section
     const targetCourseId = selectedCourseManageId;
     if (!announcementTitle || !announcementContent || !targetCourseId) {
         toast({ title: "Missing Information", description: "Please provide title, content, and ensure a course is selected.", variant: "destructive"});
@@ -244,22 +247,22 @@ export function ProfessorDashboard() {
     }
 
     setIsPostingAnnouncement(true);
-    // Simulate posting
+    console.log(`Simulating post of announcement "${announcementTitle}" to course ${targetCourseId}...`);
+    // Simulate posting delay
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    const newAnnouncementData: Omit<Announcement, 'id' | 'postedDate'> = {
-        courseId: targetCourseId, // Use the correct course ID
+    // Simulate creating announcement data (doesn't mutate global state)
+    const newAnnouncementData = createSampleAnnouncement({
+        courseId: targetCourseId,
         title: announcementTitle,
         content: announcementContent,
         professorId: userId,
-    };
-    // addSampleAnnouncement mutates global state and returns the new announcement
-    const addedAnnouncement = addSampleAnnouncement(newAnnouncementData);
-    // Update local state immutably and sort
-    setAnnouncements(prev => [addedAnnouncement, ...prev].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime()));
-    // Note: updateSampleAnnouncements(initialSampleAnnouncements) is not needed as addSampleAnnouncement modified it
+    });
 
-    const courseTitle = initialSampleCourses.find(c=>c.id === targetCourseId)?.title ?? 'the course';
+    // Update local state immutably and sort
+    setAnnouncements(prev => [newAnnouncementData, ...prev].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime()));
+
+    const courseTitle = professorCourses.find(c=>c.id === targetCourseId)?.title ?? 'the course';
     toast({ title: "Announcement Posted", description: `Posted "${announcementTitle}" to ${courseTitle}`});
     // Reset form
     setAnnouncementTitle('');
@@ -277,33 +280,43 @@ export function ProfessorDashboard() {
 
    // Simulate deleting a file
    const handleDeleteFile = (fileId: string) => {
+        console.log(`Simulating deletion of file ${fileId}...`);
+        const fileToDelete = uploadedFiles.find(f => f.id === fileId);
+        if (!fileToDelete) return;
+
+        // Revoke temporary URL if it exists
+        if (fileToDelete.url.startsWith('blob:')) {
+            URL.revokeObjectURL(fileToDelete.url);
+        }
+
         // Update local state
         const updatedFiles = uploadedFiles.filter(f => f.id !== fileId);
         setUploadedFiles(updatedFiles);
-        // Update global state for demo consistency
-        updateSampleFiles(updatedFiles);
-        toast({ title: "File Deleted", description: "File removed (simulated)." });
+
+        toast({ title: "File Deleted", description: `File "${fileToDelete.fileName}" removed (simulated).` });
    };
 
    // Simulate deleting an announcement
    const handleDeleteAnnouncement = (announcementId: string) => {
+       console.log(`Simulating deletion of announcement ${announcementId}...`);
+       const announcementToDelete = announcements.find(a => a.id === announcementId);
+       if (!announcementToDelete) return;
+
        const updatedAnnouncements = announcements.filter(a => a.id !== announcementId);
        setAnnouncements(updatedAnnouncements);
-       // Update global state
-       updateSampleAnnouncements(updatedAnnouncements);
-       toast({ title: "Announcement Deleted", description: "Announcement removed (simulated)." });
+
+       toast({ title: "Announcement Deleted", description: `Announcement "${announcementToDelete.title}" removed (simulated).` });
    };
 
 
-   // Get selected course details
+   // Get selected course details for display
    const selectedCourseForManagement = professorCourses.find(c => c.id === selectedCourseManageId);
 
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-primary mb-4">Professor Dashboard</h1>
-      {/* Ensure sampleUsers is available before trying to find the user */}
-      <p className="text-lg text-muted-foreground">Welcome, {userId && sampleUsers ? sampleUsers.find(u=>u.id===userId)?.name : 'Professor'}!</p>
+      <p className="text-lg text-muted-foreground">Welcome, {professorName}!</p>
 
       {/* My Courses Overview Section */}
       <Card>
@@ -316,7 +329,7 @@ export function ProfessorDashboard() {
             <ScrollArea className="h-48">
               <ul className="space-y-3">
                 {professorCourses.map(course => (
-                  <li key={course.id} className={`p-3 border rounded-md shadow-sm flex justify-between items-center ${selectedCourseManageId === course.id ? 'bg-accent/20 border-accent' : 'bg-secondary/10 hover:bg-secondary/20 transition-colors'}`}>
+                  <li key={course.id} className={`p-3 border rounded-md shadow-sm flex justify-between items-center transition-colors ${selectedCourseManageId === course.id ? 'bg-accent/20 border-accent' : 'bg-secondary/10 hover:bg-secondary/20'}`}>
                     <div>
                         <h3 className="font-semibold">{course.title}</h3>
                         <p className="text-sm text-muted-foreground">{course.description}</p>
@@ -325,7 +338,8 @@ export function ProfessorDashboard() {
                         variant={selectedCourseManageId === course.id ? "default" : "outline"}
                         size="sm"
                         onClick={() => handleManageCourse(course.id)}
-                        className={`${selectedCourseManageId === course.id ? 'bg-accent text-accent-foreground hover:bg-accent/90' : 'bg-background text-foreground'} `} // Adjusted styling
+                        // Use accent color for the managing button
+                        className={`${selectedCourseManageId === course.id ? 'bg-accent text-accent-foreground hover:bg-accent/90' : 'bg-background text-foreground'} `}
                     >
                        {selectedCourseManageId === course.id ? "Managing" : "Manage"}
                     </Button>
@@ -340,7 +354,7 @@ export function ProfessorDashboard() {
       </Card>
 
        {/* Detailed Course Management Section - Only shown when a course is selected */}
-        {selectedCourseForManagement && (
+        {selectedCourseForManagement ? (
             <Card id="course-management-section" className="border-accent shadow-md">
                 <CardHeader className="bg-accent/10 rounded-t-lg">
                     <CardTitle>Manage Course: {selectedCourseForManagement.title}</CardTitle>
@@ -350,7 +364,7 @@ export function ProfessorDashboard() {
                      {/* Announcements for Selected Course */}
                     <Card className="shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg">Announcements for {selectedCourseForManagement.title}</CardTitle>
+                            <CardTitle className="text-lg">Announcements</CardTitle> {/* Simplified title */}
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handlePostAnnouncement} className="space-y-3 mb-4 p-3 border rounded-md bg-secondary/10">
@@ -383,12 +397,14 @@ export function ProfessorDashboard() {
                                                <div>
                                                     <p className="font-semibold">{ann.title}</p>
                                                     <p className="text-muted-foreground whitespace-pre-wrap">{ann.content}</p>
-                                                    <p className="text-xs text-muted-foreground/70 mt-1">{format(ann.postedDate, 'PPp')}</p>
+                                                    <p className="text-xs text-muted-foreground/70 mt-1">
+                                                        Posted: {formatDistanceToNow(ann.postedDate, { addSuffix: true })}
+                                                    </p>
                                                 </div>
                                                 {/* Delete Announcement Button */}
                                                 <AlertDialog>
                                                     <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80 h-7 w-7 ml-2" aria-label={`Delete announcement ${ann.title}`}>
+                                                        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80 h-7 w-7 ml-2 flex-shrink-0" aria-label={`Delete announcement ${ann.title}`}>
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
                                                     </AlertDialogTrigger>
@@ -423,15 +439,15 @@ export function ProfessorDashboard() {
                     {/* Files for Selected Course */}
                     <Card className="shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg">Files for {selectedCourseForManagement.title}</CardTitle>
+                            <CardTitle className="text-lg">Files</CardTitle> {/* Simplified title */}
                         </CardHeader>
                         <CardContent>
                              <div className="mb-4 p-3 border rounded-md bg-secondary/10 space-y-3">
-                                <Label htmlFor="file-upload-manage">Upload New File to this Course</Label>
+                                <Label htmlFor="file-upload-manage">Upload New File</Label> {/* Simplified label */}
                                 <Input
                                     id="file-upload-manage" // Unique ID
                                     type="file"
-                                    onChange={handleFileChange} // Reuse handler
+                                    onChange={handleFileChange}
                                     disabled={isUploading}
                                     className="file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
                                     aria-label="Upload new file"
@@ -457,16 +473,12 @@ export function ProfessorDashboard() {
                                                     <Badge variant="outline" className="text-xs flex-shrink-0">{file.sizeKB} KB</Badge>
                                                 </div>
                                                 <div className="flex gap-1 flex-shrink-0">
-                                                    {/* Video Player or Download */}
-                                                    {file.fileType.startsWith('video/') ? (
-                                                        <Button variant="outline" size="sm" asChild disabled={file.url === '#'} aria-label={`Play video ${file.fileName}`}>
-                                                             <a href={file.url} target="_blank" rel="noopener noreferrer">Play</a>
-                                                        </Button>
-                                                    ) : (
-                                                        <Button variant="outline" size="sm" asChild disabled={file.url === '#'} aria-label={`Download file ${file.fileName}`}>
-                                                            <a href={file.url} download={file.fileName}>Download</a>
-                                                        </Button>
-                                                    )}
+                                                    {/* Preview/Download - Use 'a' tag for direct interaction */}
+                                                    <Button variant="outline" size="sm" asChild disabled={!file.url || file.url === '#'} aria-label={`${file.fileType.startsWith('video/') ? 'Play' : 'Download'} file ${file.fileName}`}>
+                                                         <a href={file.url} target="_blank" rel="noopener noreferrer" download={!file.fileType.startsWith('video/') ? file.fileName : undefined}>
+                                                             {file.fileType.startsWith('video/') ? 'Play' : 'Download'}
+                                                         </a>
+                                                    </Button>
                                                     {/* Delete File Button */}
                                                      <AlertDialog>
                                                         <AlertDialogTrigger asChild>
@@ -506,14 +518,16 @@ export function ProfessorDashboard() {
                      {/* Assignments & Grades Section */}
                      <Card className="shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg">Assignments & Grades for {selectedCourseForManagement.title}</CardTitle>
+                            <CardTitle className="text-lg">Assignments & Grades</CardTitle> {/* Simplified title */}
                             <CardDescription>View assignments and student grades for this course.</CardDescription>
                         </CardHeader>
                         <CardContent>
-                           {/* TODO: Add Assignment Creation Form */}
-                           <Button variant="outline" className="mb-4 w-full" disabled><PlusCircle className="mr-2 h-4 w-4"/> Create New Assignment (Not Implemented)</Button>
+                           {/* TODO: Add Assignment Creation Form/Dialog */}
+                           <Button variant="outline" className="mb-4 w-full" disabled>
+                                <PlusCircle className="mr-2 h-4 w-4"/> Create New Assignment (Not Implemented)
+                           </Button>
 
-                            <h4 className="font-semibold mb-2">Current Assignments</h4>
+                            <h4 className="font-semibold mb-2">Current Assignments ({assignments.length})</h4>
                             <ScrollArea className="h-40 border rounded-md p-2 mb-6">
                                 {assignments.length > 0 ? (
                                     <ul className="space-y-2">
@@ -522,7 +536,7 @@ export function ProfessorDashboard() {
                                                 <div className="flex justify-between items-start">
                                                      <div>
                                                         <p className="font-medium">{assign.title}</p>
-                                                        <p className="text-xs text-muted-foreground">Due: {format(assign.dueDate, 'PP')}</p>
+                                                        <p className="text-xs text-red-600 dark:text-red-400">Due: {format(assign.dueDate, 'PP')} ({formatDistanceToNow(assign.dueDate, { addSuffix: true })})</p>
                                                     </div>
                                                     {/* TODO: Implement view/edit assignment */}
                                                     <Button variant="ghost" size="sm" disabled>View/Edit</Button>
@@ -536,7 +550,7 @@ export function ProfessorDashboard() {
                                 )}
                             </ScrollArea>
 
-                            <h4 className="font-semibold mb-2">Student Grades</h4>
+                            <h4 className="font-semibold mb-2">Student Grades ({grades.length})</h4>
                             <ScrollArea className="h-60 border rounded-md">
                                 {grades.length > 0 ? (
                                     <Table>
@@ -550,20 +564,26 @@ export function ProfessorDashboard() {
                                         </TableHeader>
                                         <TableBody>
                                             {grades.map(grade => {
-                                                const student = students.find(s => s.id === grade.studentId);
-                                                const assignment = assignments.find(a => a.id === grade.assignmentId);
-                                                const percentage = grade.maxScore > 0 ? ((grade.score / grade.maxScore) * 100).toFixed(0) : 'N/A';
-                                                // Use explicit colors for better contrast and meaning
-                                                const scoreColor = parseInt(percentage) >= 80 ? "text-green-600 dark:text-green-400" : parseInt(percentage) >= 60 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400";
+                                                // Find student and assignment from respective initial data arrays
+                                                const student = initialSampleUsers.find(s => s.id === grade.studentId);
+                                                const assignment = initialSampleAssignments.find(a => a.id === grade.assignmentId);
+                                                const percentage = grade.maxScore > 0 ? Math.round((grade.score / grade.maxScore) * 100) : 0;
+                                                const scoreValid = grade.maxScore > 0;
+                                                // Use explicit colors for clarity
+                                                const scoreColor = scoreValid ? (percentage >= 80 ? "text-green-600 dark:text-green-400" : percentage >= 60 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400") : "text-muted-foreground";
 
                                                 return (
                                                     <TableRow key={grade.id}>
                                                         <TableCell>{student?.name ?? 'Unknown Student'}</TableCell>
                                                         <TableCell className="truncate max-w-[150px] md:max-w-[200px]" title={assignment?.title ?? 'Unknown Assignment'}>{assignment?.title ?? 'Unknown Assignment'}</TableCell>
-                                                        <TableCell className={`text-right font-medium ${scoreColor}`}>{grade.score}/{grade.maxScore}</TableCell>
+                                                        <TableCell className={`text-right font-medium ${scoreColor}`}>
+                                                            {scoreValid ? `${grade.score}/${grade.maxScore} (${percentage}%)` : 'N/A'}
+                                                        </TableCell>
                                                         <TableCell className="text-right">
-                                                             {/* TODO: Implement Edit Grade */}
-                                                            <Button variant="outline" size="sm" disabled>Edit Grade</Button>
+                                                             {/* TODO: Implement Edit Grade Modal/Inline Edit */}
+                                                            <Button variant="outline" size="sm" disabled>
+                                                                <Edit className="mr-1 h-3 w-3" /> Edit
+                                                            </Button>
                                                         </TableCell>
                                                     </TableRow>
                                                 )
@@ -582,19 +602,17 @@ export function ProfessorDashboard() {
                     <p className="text-xs text-muted-foreground">Currently managing "{selectedCourseForManagement.title}". Select another course above to switch.</p>
                  </CardFooter>
             </Card>
-        )}
-
-        {/* Conditionally render message if no course is selected for management */}
-        {!selectedCourseForManagement && professorCourses.length > 0 && (
+        ) : professorCourses.length > 0 ? (
+             // Show message if professor has courses but hasn't selected one to manage
              <Card className="border-dashed border-primary/50">
                 <CardHeader>
-                    <CardTitle>Select a Course</CardTitle>
+                    <CardTitle>Select a Course to Manage</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <p className="text-muted-foreground">Click the "Manage" button on a course in the "My Courses" section above to view and manage its details here.</p>
+                    <p className="text-muted-foreground">Click the "Manage" button on a course in the "My Courses" section above to view and manage its details here (Announcements, Files, Grades, etc.).</p>
                 </CardContent>
              </Card>
-        )}
+        ) : null /* Don't show the placeholder if the professor has no courses at all */ }
 
 
       {/* AI Response Review Section */}
@@ -626,13 +644,13 @@ export function ProfessorDashboard() {
              )}
             <Button type="submit" disabled={isReviewing} className="w-full bg-accent hover:bg-accent/90">
               {isReviewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Review Response with AI
+              {isReviewing ? 'Reviewing...' : 'Review Response with AI'}
             </Button>
           </form>
 
           {isReviewing && (
             <div className="mt-4 space-y-2" aria-live="polite">
-                 <p>Analyzing response...</p>
+                 <p className="text-sm text-muted-foreground">Analyzing response...</p>
                  <Skeleton className="h-4 w-1/4" />
                  <Skeleton className="h-4 w-1/2" />
                  <Skeleton className="h-4 w-3/4" />
@@ -642,10 +660,10 @@ export function ProfessorDashboard() {
           {reviewResult && !isReviewing && (
             <div className="mt-6 space-y-3 rounded-md border p-4 bg-secondary/30" aria-live="polite">
                <h3 className="text-lg font-semibold text-primary">Review Results:</h3>
-               <p><Badge variant={reviewResult.isAccurate ? "success" : "destructive"}>{reviewResult.isAccurate ? 'Accurate' : 'Inaccurate'}</Badge></p>
-               <p><Badge variant={reviewResult.isRelevant ? "success" : "destructive"}>{reviewResult.isRelevant ? 'Relevant' : 'Not Relevant'}</Badge></p>
+               <p>Accuracy: <Badge variant={reviewResult.isAccurate ? "success" : "destructive"}>{reviewResult.isAccurate ? 'Accurate' : 'Inaccurate'}</Badge></p>
+               <p>Relevance: <Badge variant={reviewResult.isRelevant ? "success" : "destructive"}>{reviewResult.isRelevant ? 'Relevant' : 'Not Relevant'}</Badge></p>
                <div>
-                   <strong className="block mb-1">Feedback:</strong>
+                   <strong className="block mb-1 text-sm">AI Feedback:</strong>
                    <p className="text-sm">{reviewResult.feedback}</p>
                </div>
             </div>
@@ -657,19 +675,19 @@ export function ProfessorDashboard() {
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Student Engagement Analytics</CardTitle>
+                <CardTitle>Student Engagement (Placeholder)</CardTitle>
                  <CardDescription>Track overall student activity and performance.</CardDescription>
               </CardHeader>
               <CardContent>
                  <div className="flex items-center justify-center text-muted-foreground h-32">
                     <BarChart2 className="h-8 w-8 mr-2" /> Placeholder for Engagement Chart/Data
                 </div>
-                {/* TODO: Display engagement analytics */}
+                {/* TODO: Display engagement analytics using a chart library */}
               </CardContent>
             </Card>
              <Card>
                 <CardHeader>
-                    <CardTitle>Quick Actions</CardTitle>
+                    <CardTitle>Quick Actions (Placeholder)</CardTitle>
                      <CardDescription>Common professor tasks.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col space-y-2">
@@ -682,19 +700,3 @@ export function ProfessorDashboard() {
     </div>
   );
 }
-
-// Helper component for success badge (or integrate into main Badge component later)
-// const SuccessBadge = ({ children }: { children: React.ReactNode }) => (
-//     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-//         {children}
-//     </span>
-// );
-
-// const DestructiveBadge = ({ children }: { children: React.ReactNode }) => (
-//      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
-//         {children}
-//     </span>
-// );
-
-// Removed Badge variant augmentation, rely on explicit className or pre-defined variants
-

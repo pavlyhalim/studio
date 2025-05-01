@@ -6,7 +6,7 @@ import { createContext, useEffect, useState, type ReactNode, useCallback, useMem
 import { onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
-import { sampleUsers } from "@/lib/sample-data"; // Import sample users
+import { initialSampleUsers } from "@/lib/sample-data"; // Import initial sample users
 
 // Define possible roles
 export type UserRole = 'student' | 'professor' | 'admin' | null;
@@ -27,7 +27,7 @@ const initialDemoRole: UserRole = 'student'; // Default to student for demo
 
 // Find initial sample user based on initial role
 const getInitialUserId = (role: UserRole): string | null => {
-    const user = sampleUsers.find(u => u.role === role);
+    const user = initialSampleUsers.find(u => u.role === role); // Use initialSampleUsers
     return user?.id ?? null;
 }
 
@@ -65,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Cleanup subscription on unmount
     return () => unsubscribe();
     // Only re-run if Firebase user state changes (not on manual role change)
-  }, []); // Removed role dependency to avoid loop with setRole callback
+  }, [role]); // Include role dependency here to update userId when role changes externally/initially
 
   const signInWithGoogle = async () => {
     setLoading(true);
@@ -79,16 +79,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
        const demoRole = 'student'; // Default role after login for demo
        setRoleInternal(demoRole);
        setUserId(getInitialUserId(demoRole));
-    } catch (error) {
-      console.error("Google Sign-In Error:", error);
-      toast({
-        title: "Google Sign-In Failed",
-        description: "An error occurred during Google Sign-In. Please try again.",
-        variant: "destructive",
-      });
-      setLoading(false); // Ensure loading is false on error
-      setRoleInternal(null); // Reset role on error
-      setUserId(null); // Reset userId on error
+    } catch (error: any) { // Catch specific error type if known, else 'any'
+        let errorMessage = "An error occurred during Google Sign-In. Please try again.";
+        // Handle specific Firebase auth errors if needed
+        if (error.code === 'auth/popup-closed-by-user') {
+            errorMessage = "Sign-in cancelled. Please try again.";
+        } else if (error.code === 'auth/network-request-failed') {
+            errorMessage = "Network error during sign-in. Check your connection.";
+        }
+        console.error("Google Sign-In Error:", error);
+        toast({
+            title: "Google Sign-In Failed",
+            description: errorMessage,
+            variant: "destructive",
+        });
+        setLoading(false); // Ensure loading is false on error
+        setRoleInternal(null); // Reset role on error
+        setUserId(null); // Reset userId on error
     }
   };
 
@@ -129,13 +136,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     role,
     setRole, // Expose setRole for demo purposes
-  }), [user, userId, loading, signInWithGoogle, signOut, role, setRole]);
+  }), [user, userId, loading, role, setRole]); // Include dependencies used in useMemo
 
   // Render children only after initial auth check is complete
   // Or show a global loading indicator
-  // if (loading) {
-  //   return <div>Loading Application...</div>; // Or a proper loading component
-  // }
+   if (loading && !user) { // Show loading only if we are loading AND don't have a user yet
+    // You might want a more sophisticated loading screen here
+    return (
+        <div className="flex items-center justify-center min-h-screen bg-background">
+            {/* Consider using a full-page loading component */}
+            Loading Application...
+        </div>
+    );
+   }
 
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

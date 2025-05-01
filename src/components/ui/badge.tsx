@@ -16,9 +16,8 @@ const badgeVariants = cva(
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
-        success: // Added success variant using CSS variables
-          "border-transparent bg-success-background text-success dark:bg-success-background dark:text-success hover:bg-success-background/80",
-
+        success: // Use CSS variables for consistency with theme
+          "border-transparent bg-[hsl(var(--success-background))] text-[hsl(var(--success))] dark:bg-[hsl(var(--success-background))] dark:text-[hsl(var(--success))] hover:bg-[hsl(var(--success-background))]/80",
       },
     },
     defaultVariants: {
@@ -32,8 +31,10 @@ export interface BadgeProps
     VariantProps<typeof badgeVariants> {}
 
 function Badge({ className, variant, ...props }: BadgeProps) {
+  // Ensure variant is not null or undefined before passing to cva
+  const appliedVariant = variant ?? "default";
   return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
+    <div className={cn(badgeVariants({ variant: appliedVariant }), className)} {...props} />
   )
 }
 

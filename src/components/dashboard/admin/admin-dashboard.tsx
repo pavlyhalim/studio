@@ -2,26 +2,27 @@
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Settings, BookOpen, PlusCircle, Trash2, Save, ToggleLeft, ToggleRight } from "lucide-react"; // Added Save, Toggle icons
+import { Users, Settings, BookOpen, PlusCircle, Trash2, Save, Loader2 } from "lucide-react";
 import {
-    sampleUsers as initialSampleUsers, // Use initial data only for initialization
-    sampleCourses as initialSampleCourses, // Use initial data only for initialization
-    sampleEnrollments as initialSampleEnrollments, // Use initial data
-    addSampleUser,
-    addSampleCourse,
-    updateSampleUsers, // Import update function
-    updateSampleCourses, // Import update function
-    updateSampleEnrollments, // Import update function
+    initialSampleUsers,
+    initialSampleCourses,
+    initialSampleEnrollments,
+    initialSampleAssignments, // Need assignments to cascade delete
+    initialSampleGrades, // Need grades to cascade delete
+    createSampleUser,
+    createSampleCourse,
     type User,
     type Course,
-    type Enrollment
-} from "@/lib/sample-data"; // Import sample data and manipulation functions
+    type Enrollment,
+    type Assignment,
+    type Grade
+} from "@/lib/sample-data"; // Import initial data and create functions
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch'; // Import Switch
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -45,12 +46,13 @@ interface PlatformSettings {
 
 export function AdminDashboard() {
   const { toast } = useToast();
-  // Use state to manage users and courses for reactivity after adding/deleting
-  // Initialize state with the imported sample data
+  // Initialize state with the imported initial sample data
   const [users, setUsers] = useState<User[]>(initialSampleUsers);
   const [courses, setCourses] = useState<Course[]>(initialSampleCourses);
-  // Use state for enrollments to track changes when users/courses are deleted
   const [enrollments, setEnrollments] = useState<Enrollment[]>(initialSampleEnrollments);
+  // Keep track of assignments and grades for cascading deletes
+  const [assignments, setAssignments] = useState<Assignment[]>(initialSampleAssignments);
+  const [grades, setGrades] = useState<Grade[]>(initialSampleGrades);
 
 
   // State for Add User form
@@ -72,7 +74,6 @@ export function AdminDashboard() {
     });
     const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-
   // Derive professors from the current users state
   const professors = users.filter(u => u.role === 'professor');
   const totalUsers = users.length;
@@ -85,28 +86,27 @@ export function AdminDashboard() {
       toast({ title: "Missing Fields", description: "Please fill all user details.", variant: "destructive" });
       return;
     }
-    // addSampleUser now MUTATES the global sampleUsers for demo purposes and returns the new user
-    const newUser = addSampleUser({ name: newUserName, email: newUserEmail, role: newUserRole });
 
-    // Since addSampleUser mutates the global array, we update the local state
-    // by re-reading the potentially modified global array (or just adding the newUser)
-    // To ensure reactivity, it's better to update state immutably:
-    setUsers(currentUsers => {
-        // Check if the user was actually added (might be duplicate)
-        // Note: addSampleUser already checks for email duplicates and returns existing if found
-        const existingUser = currentUsers.find(u => u.id === newUser.id);
-        if (!existingUser) {
-            toast({ title: "User Added", description: `User ${newUser.name} created successfully.` });
-            return [...currentUsers, newUser];
-        } else if (newUser.id !== existingUser.id) {
-             // This case handles if addSampleUser returned a *different* user with the same email
-            return currentUsers; // No change, warning already logged by addSampleUser
-        } else {
-            // If the returned user IS the one already in state (edge case of duplicate submission)
-            return currentUsers;
-        }
-    });
+    // Check if user already exists in current local state
+    if (users.some(u => u.email.toLowerCase() === newUserEmail.toLowerCase())) {
+      toast({ title: "User Exists", description: `User with email ${newUserEmail} already exists.`, variant: "destructive" });
+      return;
+    }
 
+    // Simulate creating a user object (doesn't mutate global state)
+    const simulationResult = createSampleUser({ name: newUserName, email: newUserEmail, role: newUserRole });
+
+    if ('error' in simulationResult) {
+        toast({ title: "Creation Error", description: simulationResult.error, variant: "destructive" });
+        return;
+    }
+
+    const newUser = simulationResult;
+
+    // Update local state immutably
+    setUsers(currentUsers => [...currentUsers, newUser]);
+
+    toast({ title: "User Added", description: `User ${newUser.name} created successfully (simulated).` });
 
     // Reset form
     setNewUserName('');
@@ -120,20 +120,26 @@ export function AdminDashboard() {
       toast({ title: "Missing Fields", description: "Please fill all course details.", variant: "destructive" });
       return;
     }
-    // addSampleCourse now MUTATES the global sampleCourses for demo purposes and returns the new course
-    const newCourse = addSampleCourse({ title: newCourseTitle, description: newCourseDescription, professorId: newCourseProfessorId });
 
-     // Update the component's local state based on the (potentially) mutated global state
-     setCourses(currentCourses => {
-         const existingCourse = currentCourses.find(c => c.id === newCourse.id);
-         if (!existingCourse) {
-            toast({ title: "Course Added", description: `Course "${newCourse.title}" created successfully.` });
-            return [...currentCourses, newCourse];
-         } else {
-             // Already handled by addSampleCourse's console warning
-            return currentCourses; // No change if duplicate
-         }
-     });
+    // Check if course already exists in local state
+    if (courses.some(c => c.title.toLowerCase() === newCourseTitle.toLowerCase())) {
+        toast({ title: "Course Exists", description: `Course "${newCourseTitle}" already exists.`, variant: "destructive" });
+        return;
+    }
+
+    // Simulate creating a course object (doesn't mutate global state)
+    const simulationResult = createSampleCourse({ title: newCourseTitle, description: newCourseDescription, professorId: newCourseProfessorId });
+
+     if ('error' in simulationResult) {
+         toast({ title: "Creation Error", description: simulationResult.error, variant: "destructive" });
+         return;
+     }
+     const newCourse = simulationResult;
+
+     // Update the component's local state immutably
+     setCourses(currentCourses => [...currentCourses, newCourse]);
+
+     toast({ title: "Course Added", description: `Course "${newCourse.title}" created successfully (simulated).` });
 
     // Reset form
     setNewCourseTitle('');
@@ -141,7 +147,7 @@ export function AdminDashboard() {
     setNewCourseProfessorId('');
   };
 
-   // Simulate deleting a user (local state update only)
+   // Simulate deleting a user
    const handleDeleteUser = (userId: string) => {
      const userToDelete = users.find(u => u.id === userId);
      if (!userToDelete) return;
@@ -151,32 +157,35 @@ export function AdminDashboard() {
          toast({ title: "Action Denied", description: "Cannot delete the last administrator.", variant: "destructive"});
          return;
      }
-     // TODO: Add check for deleting self
+     // TODO: Add check for deleting self if applicable (using useAuth context)
 
      // Update local users state
      const updatedUsers = users.filter(user => user.id !== userId);
      setUsers(updatedUsers);
-     updateSampleUsers(updatedUsers); // Update "global" state for demo consistency
 
-     // Remove enrollments associated with the user (if student)
+     // Cascade delete enrollments associated with the user (if student)
      if(userToDelete.role === 'student') {
          const updatedEnrollments = enrollments.filter(e => e.studentId !== userId);
          setEnrollments(updatedEnrollments);
-         updateSampleEnrollments(updatedEnrollments); // Update "global" state
-         console.log(`Simulating removal of enrollments for student ${userId}`);
+         // Also remove grades for this student
+         const updatedGrades = grades.filter(g => g.studentId !== userId);
+         setGrades(updatedGrades);
+         console.log(`Simulating removal of enrollments and grades for student ${userId}`);
      }
-     // If professor, potentially unassign courses or reassign
+
+     // If professor, unassign courses or reassign
      if(userToDelete.role === 'professor') {
-         const updatedCourses = courses.map(c => c.professorId === userId ? { ...c, professorId: 'unassigned' } : c); // Example: mark as unassigned
+         // Mark courses as 'unassigned' or assign to a default admin/placeholder?
+         const updatedCourses = courses.map(c => c.professorId === userId ? { ...c, professorId: 'unassigned' } : c);
          setCourses(updatedCourses);
-         updateSampleCourses(updatedCourses);
           console.log(`Simulating unassignment of courses for professor ${userId}`);
+          // Note: Files/Announcements might still be linked by professorId, handle if needed
      }
 
      toast({ title: "User Deleted", description: `User ${userToDelete.name} removed (simulated).` });
    };
 
-   // Simulate deleting a course (local state update only)
+   // Simulate deleting a course
     const handleDeleteCourse = (courseId: string) => {
         const courseToDelete = courses.find(c => c.id === courseId);
         if (!courseToDelete) return;
@@ -184,15 +193,21 @@ export function AdminDashboard() {
         // Update local courses state
         const updatedCourses = courses.filter(course => course.id !== courseId);
         setCourses(updatedCourses);
-        updateSampleCourses(updatedCourses); // Update "global" state
 
-        // Also remove enrollments, assignments, grades etc. associated with the course
+        // Cascade delete enrollments associated with the course
          const updatedEnrollments = enrollments.filter(e => e.courseId !== courseId);
          setEnrollments(updatedEnrollments);
-         updateSampleEnrollments(updatedEnrollments); // Update "global" state
 
-        // In a real app, would also delete assignments, grades, files etc.
-        console.log(`Simulating removal of related data (enrollments) for course ${courseId}`);
+        // Cascade delete assignments associated with the course
+        const updatedAssignments = assignments.filter(a => a.courseId !== courseId);
+        setAssignments(updatedAssignments);
+
+        // Cascade delete grades associated with the course
+         const updatedGrades = grades.filter(g => g.courseId !== courseId);
+         setGrades(updatedGrades);
+
+        // In a real app, would also delete files, announcements etc.
+        console.log(`Simulating removal of related data (enrollments, assignments, grades) for course ${courseId}`);
         toast({ title: "Course Deleted", description: `Course "${courseToDelete.title}" removed (simulated).` });
     };
 
@@ -204,13 +219,14 @@ export function AdminDashboard() {
     // Simulate saving settings
     const handleSaveSettings = async () => {
         setIsSavingSettings(true);
-        console.log("Simulating saving settings:", platformSettings);
+        console.log("Simulating saving platform settings:", platformSettings);
         // In a real app, send settings to the backend API here
+        // Example: await api.updatePlatformSettings(platformSettings);
         await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
         setIsSavingSettings(false);
         toast({ title: "Settings Saved", description: "Platform settings have been updated (simulated)." });
 
-        // Apply theme change (basic example, real app might need global state/context)
+        // Apply theme change (basic example, real app might need global state/context or reload)
         if (platformSettings.theme === 'dark') {
             document.documentElement.classList.add('dark');
         } else {
@@ -251,7 +267,8 @@ export function AdminDashboard() {
              <Settings className="h-4 w-4 text-muted-foreground" />
            </CardHeader>
            <CardContent>
-             <div className="text-2xl font-bold text-green-600 dark:text-green-400">Operational</div> {/* Explicit green color for status */}
+             {/* Explicit color for status for clarity */}
+             <div className="text-2xl font-bold text-green-600 dark:text-green-400">Operational</div>
              <p className="text-xs text-muted-foreground">All systems normal</p>
            </CardContent>
         </Card>
@@ -294,52 +311,56 @@ export function AdminDashboard() {
                  </div>
             </form>
 
-           <h3 className="text-lg font-semibold mb-3">Existing Users</h3>
+           <h3 className="text-lg font-semibold mb-3">Existing Users ({users.length})</h3>
           <ScrollArea className="h-72 border rounded-md"> {/* Added border */}
-            <ul className="divide-y divide-border">
-              {users.map(user => (
-                <li key={user.id} className="flex justify-between items-center p-3 hover:bg-secondary/10">
-                  <div className="flex items-center gap-3">
-                     {/* Optional: Add Avatar */}
-                    <div>
-                        <p className="font-medium">{user.name}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
+            {users.length > 0 ? (
+                <ul className="divide-y divide-border">
+                {users.map(user => (
+                    <li key={user.id} className="flex justify-between items-center p-3 hover:bg-secondary/10">
+                    <div className="flex items-center gap-3">
+                        {/* Optional: Add Avatar */}
+                        <div>
+                            <p className="font-medium">{user.name}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                        </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                      <Badge variant={user.role === 'admin' ? 'destructive' : user.role === 'professor' ? 'secondary' : 'outline'}>
-                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                      </Badge>
-                      {/* Delete User Button with Confirmation */}
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete user ${user.name}`}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will permanently delete the user
-                              ({user.name}) and remove their associated data (enrollments, etc.).
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() => handleDeleteUser(user.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                                Delete User
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                    <div className="flex items-center gap-2">
+                        <Badge variant={user.role === 'admin' ? 'destructive' : user.role === 'professor' ? 'secondary' : 'outline'}>
+                            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                        </Badge>
+                        {/* Delete User Button with Confirmation */}
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete user ${user.name}`}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete the user
+                                ({user.name}) and remove their associated data (enrollments, grades, etc.).
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                    Delete User
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
+                    </li>
+                ))}
+                </ul>
+            ) : (
+                <p className="text-center text-muted-foreground p-4">No users found.</p>
+            )}
           </ScrollArea>
            {/* <Button variant="outline" className="mt-4" disabled>View All Users</Button> */}
         </CardContent>
@@ -376,62 +397,66 @@ export function AdminDashboard() {
                      </Select>
                  </div>
                  <div className="md:col-start-4 flex items-end">
-                    <Button type="submit" className="w-full">
+                    <Button type="submit" className="w-full" disabled={professors.length === 0}>
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Course
                     </Button>
                  </div>
             </form>
 
-            <h3 className="text-lg font-semibold mb-3">Existing Courses</h3>
+            <h3 className="text-lg font-semibold mb-3">Existing Courses ({courses.length})</h3>
              <ScrollArea className="h-72 border rounded-md">
-                <ul className="divide-y divide-border">
-                 {courses.map(course => {
-                    // Find professor from the current *state*, not initialSampleUsers
-                    const professor = users.find(u => u.id === course.professorId);
-                    // Count students from the current *state* of enrollments
-                    const studentCount = enrollments.filter(e => e.courseId === course.id).length;
+                {courses.length > 0 ? (
+                    <ul className="divide-y divide-border">
+                    {courses.map(course => {
+                        // Find professor from the current local state
+                        const professor = users.find(u => u.id === course.professorId);
+                        // Count students from the current local state of enrollments
+                        const studentCount = enrollments.filter(e => e.courseId === course.id).length;
 
-                    return (
-                        <li key={course.id} className="flex justify-between items-center p-3 hover:bg-secondary/10">
-                        <div>
-                            <p className="font-medium">{course.title}</p>
-                            <p className="text-sm text-muted-foreground">
-                                Professor: {professor?.name ?? 'N/A'} | Students: {studentCount}
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {/* Delete Course Button */}
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete course ${course.title}`}>
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This action cannot be undone. This will permanently delete the course
-                                      "{course.title}" and all associated data (assignments, grades, enrollments, files).
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                        onClick={() => handleDeleteCourse(course.id)}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    >
-                                        Delete Course
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            {/* <Button variant="outline" size="sm" disabled>Manage</Button> */}
-                        </div>
-                        </li>
-                    );
-                    })}
-                </ul>
+                        return (
+                            <li key={course.id} className="flex justify-between items-center p-3 hover:bg-secondary/10">
+                            <div>
+                                <p className="font-medium">{course.title}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    Professor: {professor?.name ?? <span className="text-destructive">Unassigned</span>} | Students: {studentCount}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {/* Delete Course Button */}
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete course ${course.title}`}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete the course
+                                        "{course.title}" and all associated data (assignments, grades, enrollments, files).
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={() => handleDeleteCourse(course.id)}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                            Delete Course
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                                {/* <Button variant="outline" size="sm" disabled>Manage</Button> */}
+                            </div>
+                            </li>
+                        );
+                        })}
+                    </ul>
+                ) : (
+                    <p className="text-center text-muted-foreground p-4">No courses found.</p>
+                )}
             </ScrollArea>
         </CardContent>
       </Card>
@@ -501,7 +526,7 @@ export function AdminDashboard() {
                  <div className="flex items-center justify-between p-3 border rounded-md">
                     <div>
                         <Label htmlFor="enable-live-transcriptions" className="font-normal">Enable Live Lecture Transcriptions</Label>
-                         <p className="text-xs text-muted-foreground">Provides real-time transcriptions during live video sessions (requires integration).</p>
+                         <p className="text-xs text-muted-foreground">Provides real-time transcriptions during live video sessions (feature not implemented).</p>
                     </div>
                     <Switch
                         id="enable-live-transcriptions"
@@ -516,7 +541,7 @@ export function AdminDashboard() {
              <Button onClick={handleSaveSettings} disabled={isSavingSettings} className="w-full md:w-auto">
                  {isSavingSettings ? (
                     <>
-                        <Save className="mr-2 h-4 w-4 animate-spin"/> Saving...
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...
                     </>
                  ) : (
                     <>
