@@ -41,19 +41,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const [role, setRoleInternal] = useState<UserRole>(initialDemoRole); // Use internal setter
   const [userId, setUserId] = useState<string | null>(getInitialUserId(initialDemoRole));
-  const isFirebaseReady = useMemo(() => !!auth && !!googleProvider, []); // Check if Firebase services are loaded
+  // isFirebaseReady checks if the config values seem present, not if initialization succeeded
+  const isFirebaseConfigPresent = useMemo(() => !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY && process.env.NEXT_PUBLIC_FIREBASE_API_KEY !== 'YOUR_API_KEY', []);
+  const [isFirebaseAuthReady, setIsFirebaseAuthReady] = useState(false); // Track successful auth init
 
 
   useEffect(() => {
-    // Only subscribe if Firebase Auth is initialized
+    // Only subscribe if Firebase Auth object exists (meaning initialization was attempted)
     if (!auth) {
-        console.warn("AuthProvider: Firebase Auth is not initialized. Skipping auth state listener.");
+        console.warn("AuthProvider: Firebase Auth object is null. Skipping auth state listener. This likely means Firebase initialization failed.");
+        setIsFirebaseAuthReady(false);
         setLoading(false); // Set loading to false as we can't wait for auth
         // Retain initial demo role/user if Firebase isn't ready
         setRoleInternal(initialDemoRole);
         setUserId(getInitialUserId(initialDemoRole));
         return; // Exit early
     }
+
+    console.log("AuthProvider: Firebase Auth object exists, attempting to set up listener.");
+    setIsFirebaseAuthReady(true); // Auth object exists, assume ready for listener setup
 
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -69,9 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Reset role and userId on sign out or if no user
         setRoleInternal(initialDemoRole); // Reset to default demo role
         setUserId(getInitialUserId(initialDemoRole)); // Reset userId based on default demo role
+        console.log("Auth state changed, no user logged in, resetting role and userId.");
       }
     }, (error) => { // Add error handler for onAuthStateChanged
         console.error("Error in onAuthStateChanged listener:", error);
+        setIsFirebaseAuthReady(false); // Mark auth as not ready on listener error
         setLoading(false); // Ensure loading is false on error
         setUser(null); // Reset user state on listener error
         setRoleInternal(initialDemoRole); // Reset role
@@ -84,16 +92,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // Cleanup subscription on unmount
-    return () => unsubscribe();
-    // Rerun if role changes (to update derived userId) or if auth becomes available later (though unlikely with current setup)
-  }, [role, auth]); // Include auth in dependency array
+    return () => {
+        console.log("Auth provider unmounting, unsubscribing from auth state changes.");
+        unsubscribe();
+    };
+    // Rerun if role changes (to update derived userId) or if auth object changes (unlikely but safe)
+  }, [role, auth]); // Keep auth in dependency array
 
   const signInWithGoogle = async () => {
+    // Check if auth and provider objects are available
     if (!auth || !googleProvider) {
-        console.error("Google Sign-In Error: Firebase Auth or Google Provider not initialized.");
+        console.error("Google Sign-In Error: Firebase Auth or Google Provider is null. Initialization likely failed.");
         toast({
             title: "Sign-In Unavailable",
-            description: "Firebase is not configured correctly. Please contact support.",
+            description: isFirebaseConfigPresent ? "Firebase Authentication failed to initialize. Check console." : "Firebase is not configured correctly. Please update .env.",
             variant: "destructive",
         });
         return;
@@ -120,6 +132,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             errorMessage = "Sign-in popup blocked or cancelled. Please allow popups and try again.";
         } else if (error.code === 'auth/internal-error') {
              errorMessage = "An internal authentication error occurred. Please try again later.";
+        } else if (error.code === 'auth/unauthorized-domain') {
+             errorMessage = "This domain is not authorized for OAuth operations for your Firebase project. Check your Firebase Console > Authentication > Settings > Authorized domains.";
         }
         console.error("Google Sign-In Error:", error.code, error.message);
         toast({
@@ -127,19 +141,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             description: errorMessage,
             variant: "destructive",
         });
-        setLoading(false); // Ensure loading is false on error
-        // Let onAuthStateChanged handle resetting role/userId if login truly fails
+        // setLoading(false); // Don't set loading false here, let onAuthStateChanged handle it
     } finally {
-        // setLoading(false) is handled by onAuthStateChanged listener
+        // setLoading(false) is handled by onAuthStateChanged listener typically,
+        // but set it false if the sign-in promise itself fails and doesn't trigger the listener
+        // However, the listener should eventually trigger even on failure to clear user state.
+        // It's safer to rely on the listener. If loading gets stuck, investigate the listener.
     }
   };
 
   const signOut = async () => {
+     // Check if auth object is available
      if (!auth) {
-        console.error("Sign Out Error: Firebase Auth not initialized.");
+        console.error("Sign Out Error: Firebase Auth is null. Initialization likely failed.");
         toast({
             title: "Sign-Out Unavailable",
-            description: "Firebase is not configured correctly.",
+            description: isFirebaseConfigPresent ? "Firebase Authentication failed to initialize. Check console." : "Firebase is not configured correctly.",
             variant: "destructive",
         });
         return;
@@ -156,8 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: "An error occurred during sign out. Please try again.",
         variant: "destructive",
       });
-      // Ensure loading is false even on error, though onAuthStateChanged should handle it
-      setLoading(false);
+      // setLoading(false); // Let onAuthStateChanged handle loading state
     }
     // Loading and state reset is handled by onAuthStateChanged
   };
@@ -180,15 +196,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signOut,
     role,
     setRole, // Expose setRole for demo purposes
-    isFirebaseReady, // Expose Firebase readiness state
-  }), [user, userId, loading, role, setRole, isFirebaseReady]); // Include dependencies used in useMemo
+    isFirebaseReady: isFirebaseAuthReady, // Expose Firebase auth readiness state
+  }), [user, userId, loading, role, setRole, isFirebaseAuthReady]); // Include dependencies used in useMemo
 
   // Render children only after initial auth check is complete (or determined impossible)
-   if (loading) { // Show loading only while the initial check is happening
-    // You might want a more sophisticated loading screen here
+   // Still show loading until the initial auth state check completes
+   if (loading) {
     return (
         <div className="flex items-center justify-center min-h-screen bg-background">
-            {/* Consider using a full-page loading component */}
+            {/* Use a loading component */}
             Loading Application...
         </div>
     );
