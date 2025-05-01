@@ -24,10 +24,17 @@ export async function POST(request: Request) {
     // --- Simulate Password Check ---
     // IMPORTANT: This is NOT secure. Real apps MUST use bcrypt.compareSync() or similar.
     // Compare the provided password against the *simulated* hash stored in mockUsersDb.
-    const simulatedPasswordMatches = `simulated_hash_for_${password}` === existingUser.passwordHash;
+    // The stored hash is generated as `simulated_hash_for_${originalPassword}` in sample-data.
+    // We simulate the check by generating the hash for the provided password and comparing.
+    const simulatedHashForProvidedPassword = `simulated_hash_for_${password}`;
+    const passwordMatches = simulatedHashForProvidedPassword === existingUser.passwordHash;
 
-    if (!simulatedPasswordMatches) {
+
+    if (!passwordMatches) {
         console.log(`Login attempt failed: Password mismatch for user ${existingUser.email}`);
+         // Log the expected vs provided hash for debugging (REMOVE IN PRODUCTION)
+         console.log(`Expected hash: ${existingUser.passwordHash}`);
+         console.log(`Generated hash from provided password: ${simulatedHashForProvidedPassword}`);
         return NextResponse.json({ message: 'Invalid email or password' }, { status: 401 });
     }
     // ---------------------------------
