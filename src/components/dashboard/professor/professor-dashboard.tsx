@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -23,6 +22,7 @@ import {
     sampleAssignments, // Import assignments
     sampleGrades, // Import grades
     getStudentsInCourse, // Import student getter
+    sampleUsers, // Import sampleUsers
     type Course,
     type UploadedFile,
     type Announcement,
@@ -153,7 +153,9 @@ export function ProfessorDashboard() {
       setUploadError("Please select a file to upload.");
       return;
     }
-    if (!uploadCourseId) {
+    // Use the selected course ID for management when uploading from that section
+    const targetCourseId = selectedCourseManageId || uploadCourseId;
+    if (!targetCourseId) {
       setUploadError("Please select a course to upload the file to.");
       return;
     }
@@ -172,7 +174,7 @@ export function ProfessorDashboard() {
 
     if (success) {
         const newFileData: Omit<UploadedFile, 'id' | 'uploadDate'> = {
-            courseId: uploadCourseId,
+            courseId: targetCourseId, // Use the correct course ID
             professorId: userId,
             fileName: selectedFile.name,
             fileType: selectedFile.type || 'unknown', // Handle unknown type
@@ -180,13 +182,17 @@ export function ProfessorDashboard() {
             sizeKB: Math.round(selectedFile.size / 1024),
         };
         const addedFile = addSampleFile(newFileData); // Simulate adding to data
-        setUploadedFiles(prev => [addedFile, ...prev]); // Update state
+        setUploadedFiles(prev => [addedFile, ...prev].sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime())); // Update state and sort
 
-        setUploadSuccess(`File "${selectedFile.name}" uploaded to course (simulated).`);
+
+        setUploadSuccess(`File "${selectedFile.name}" uploaded to course "${sampleCourses.find(c => c.id === targetCourseId)?.title}" (simulated).`);
         toast({ title: "Upload Successful", description: `File "${selectedFile.name}" uploaded.` });
         setSelectedFile(null); // Reset file input state
-        const fileInput = document.getElementById('file-upload') as HTMLInputElement;
-        if (fileInput) fileInput.value = ''; // Clear the file input visually
+        // Clear both possible file inputs visually
+        const fileInputManage = document.getElementById('file-upload-manage') as HTMLInputElement;
+        if (fileInputManage) fileInputManage.value = '';
+        const fileInputGlobal = document.getElementById('file-upload-global') as HTMLInputElement; // If you add a global one later
+        if (fileInputGlobal) fileInputGlobal.value = '';
 
     } else {
         setUploadError("File upload failed (simulated). Please try again.");
@@ -197,8 +203,10 @@ export function ProfessorDashboard() {
 
   const handlePostAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!announcementTitle || !announcementContent || !announcementCourseId) {
-        toast({ title: "Missing Information", description: "Please provide title, content, and course for the announcement.", variant: "destructive"});
+    // Use the selected course ID for management when posting from that section
+    const targetCourseId = selectedCourseManageId || announcementCourseId;
+    if (!announcementTitle || !announcementContent || !targetCourseId) {
+        toast({ title: "Missing Information", description: "Please provide title, content, and ensure a course is selected.", variant: "destructive"});
         return;
     }
     if (!userId) {
@@ -211,15 +219,16 @@ export function ProfessorDashboard() {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     const newAnnouncementData: Omit<Announcement, 'id' | 'postedDate'> = {
-        courseId: announcementCourseId,
+        courseId: targetCourseId, // Use the correct course ID
         title: announcementTitle,
         content: announcementContent,
         professorId: userId,
     };
     const addedAnnouncement = addSampleAnnouncement(newAnnouncementData); // Simulate adding
-    setAnnouncements(prev => [addedAnnouncement, ...prev]); // Update state
+    // Update state and sort by date descending
+    setAnnouncements(prev => [addedAnnouncement, ...prev].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime()));
 
-    toast({ title: "Announcement Posted", description: `Posted "${announcementTitle}"`});
+    toast({ title: "Announcement Posted", description: `Posted "${announcementTitle}" to ${sampleCourses.find(c=>c.id === targetCourseId)?.title}`});
     // Reset form
     setAnnouncementTitle('');
     setAnnouncementContent('');
@@ -253,14 +262,14 @@ export function ProfessorDashboard() {
       <Card>
         <CardHeader>
           <CardTitle>My Courses</CardTitle>
-          <CardDescription>Overview of the courses you are teaching.</CardDescription>
+          <CardDescription>Overview of the courses you are teaching. Click 'Manage' to see details below.</CardDescription>
         </CardHeader>
         <CardContent>
           {professorCourses.length > 0 ? (
             <ScrollArea className="h-48">
               <ul className="space-y-3">
                 {professorCourses.map(course => (
-                  <li key={course.id} className={`p-3 border rounded-md shadow-sm flex justify-between items-center ${selectedCourseManageId === course.id ? 'bg-accent/20 border-accent' : 'bg-secondary/10'}`}>
+                  <li key={course.id} className={`p-3 border rounded-md shadow-sm flex justify-between items-center ${selectedCourseManageId === course.id ? 'bg-accent/20 border-accent' : 'bg-secondary/10 hover:bg-secondary/20 transition-colors'}`}>
                     <div>
                         <h3 className="font-semibold">{course.title}</h3>
                         <p className="text-sm text-muted-foreground">{course.description}</p>
@@ -269,6 +278,7 @@ export function ProfessorDashboard() {
                         variant={selectedCourseManageId === course.id ? "default" : "outline"}
                         size="sm"
                         onClick={() => handleManageCourse(course.id)}
+                        className="bg-accent text-accent-foreground hover:bg-accent/90 data-[variant=outline]:bg-background data-[variant=outline]:text-foreground" // Ensure proper styling
                     >
                        {selectedCourseManageId === course.id ? "Managing" : "Manage"}
                     </Button>
@@ -282,18 +292,18 @@ export function ProfessorDashboard() {
         </CardContent>
       </Card>
 
-       {/* Detailed Course Management Section */}
+       {/* Detailed Course Management Section - Only shown when a course is selected */}
         {selectedCourseForManagement && (
-            <Card id="course-management-section" className="border-accent">
-                <CardHeader>
+            <Card id="course-management-section" className="border-accent shadow-md">
+                <CardHeader className="bg-accent/10 rounded-t-lg">
                     <CardTitle>Manage Course: {selectedCourseForManagement.title}</CardTitle>
                      <CardDescription>Manage announcements, files, assignments, and grades for this course.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-6 pt-6">
                      {/* Announcements for Selected Course */}
-                    <Card>
+                    <Card className="shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg">Announcements</CardTitle>
+                            <CardTitle className="text-lg">Announcements for {selectedCourseForManagement.title}</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <form onSubmit={handlePostAnnouncement} className="space-y-3 mb-4 p-3 border rounded-md bg-secondary/10">
@@ -310,7 +320,7 @@ export function ProfessorDashboard() {
                                      required
                                      rows={3}
                                  />
-                                 <Button type="submit" disabled={isPostingAnnouncement} className="w-full">
+                                 <Button type="submit" disabled={isPostingAnnouncement} className="w-full bg-accent hover:bg-accent/90">
                                      {isPostingAnnouncement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                                      Post Announcement
                                  </Button>
@@ -319,7 +329,7 @@ export function ProfessorDashboard() {
                                 {announcements.filter(a => a.courseId === selectedCourseManageId).length > 0 ? (
                                     <ul className="space-y-2">
                                         {announcements.filter(a => a.courseId === selectedCourseManageId).map(ann => (
-                                            <li key={ann.id} className="text-sm p-2 bg-background rounded">
+                                            <li key={ann.id} className="text-sm p-2 bg-background rounded border border-border">
                                                 <p className="font-semibold">{ann.title}</p>
                                                 <p className="text-muted-foreground whitespace-pre-wrap">{ann.content}</p>
                                                 <p className="text-xs text-muted-foreground/70 mt-1">{format(ann.postedDate, 'PPp')}</p>
@@ -334,9 +344,9 @@ export function ProfessorDashboard() {
                     </Card>
 
                     {/* Files for Selected Course */}
-                    <Card>
+                    <Card className="shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg">Course Files</CardTitle>
+                            <CardTitle className="text-lg">Files for {selectedCourseForManagement.title}</CardTitle>
                         </CardHeader>
                         <CardContent>
                              <div className="mb-4 p-3 border rounded-md bg-secondary/10 space-y-3">
@@ -351,7 +361,7 @@ export function ProfessorDashboard() {
                                 {selectedFile && <p className="text-sm text-muted-foreground">Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)</p>}
                                 {uploadError && <Alert variant="destructive" className="text-xs"><AlertDescription>{uploadError}</AlertDescription></Alert>}
                                 {uploadSuccess && <Alert variant="success" className="text-xs"><AlertDescription>{uploadSuccess}</AlertDescription></Alert>}
-                                <Button onClick={() => handleFileUpload()} disabled={isUploading || !selectedFile} className="w-full">
+                                <Button onClick={handleFileUpload} disabled={isUploading || !selectedFile} className="w-full bg-accent hover:bg-accent/90">
                                     {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                                     {isUploading ? 'Uploading...' : 'Upload File'}
                                 </Button>
@@ -361,7 +371,7 @@ export function ProfessorDashboard() {
                                 {uploadedFiles.filter(f => f.courseId === selectedCourseManageId).length > 0 ? (
                                     <ul className="space-y-2">
                                         {uploadedFiles.filter(f => f.courseId === selectedCourseManageId).map(file => (
-                                            <li key={file.id} className="flex items-center justify-between p-2 bg-background rounded text-sm">
+                                            <li key={file.id} className="flex items-center justify-between p-2 bg-background rounded border border-border text-sm">
                                                 <div className="flex items-center gap-2 overflow-hidden">
                                                      {file.fileType.startsWith('video/') ? <Video className="h-4 w-4 text-muted-foreground flex-shrink-0"/> : <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0"/>}
                                                     <span className="truncate flex-grow">{file.fileName}</span>
@@ -379,7 +389,7 @@ export function ProfessorDashboard() {
                                                         </Button>
                                                     )}
 
-                                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteFile(file.id)}>
+                                                     <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive/80" onClick={() => handleDeleteFile(file.id)}>
                                                         <Trash2 className="h-4 w-4" />
                                                         <span className="sr-only">Delete</span>
                                                      </Button>
@@ -395,9 +405,9 @@ export function ProfessorDashboard() {
                     </Card>
 
                      {/* Assignments & Grades Section */}
-                     <Card>
+                     <Card className="shadow-sm">
                         <CardHeader>
-                            <CardTitle className="text-lg">Assignments & Grades</CardTitle>
+                            <CardTitle className="text-lg">Assignments & Grades for {selectedCourseForManagement.title}</CardTitle>
                             <CardDescription>View assignments and student grades for this course.</CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -409,7 +419,7 @@ export function ProfessorDashboard() {
                                 {assignments.length > 0 ? (
                                     <ul className="space-y-2">
                                         {assignments.map(assign => (
-                                            <li key={assign.id} className="text-sm p-2 bg-background rounded">
+                                            <li key={assign.id} className="text-sm p-2 bg-background rounded border border-border">
                                                 <div className="flex justify-between items-start">
                                                      <div>
                                                         <p className="font-medium">{assign.title}</p>
@@ -442,12 +452,15 @@ export function ProfessorDashboard() {
                                             {grades.map(grade => {
                                                 const student = students.find(s => s.id === grade.studentId);
                                                 const assignment = assignments.find(a => a.id === grade.assignmentId);
+                                                const percentage = grade.maxScore > 0 ? ((grade.score / grade.maxScore) * 100).toFixed(0) : 'N/A';
+                                                const scoreColor = parseInt(percentage) >= 80 ? "text-success" : parseInt(percentage) >= 60 ? "text-yellow-600 dark:text-yellow-400" : "text-destructive";
+
                                                 return (
                                                     <TableRow key={grade.id}>
                                                         <TableCell>{student?.name ?? 'Unknown Student'}</TableCell>
-                                                        <TableCell className="truncate max-w-xs">{assignment?.title ?? 'Unknown Assignment'}</TableCell>
-                                                        <TableCell className="text-right">{grade.score}/{grade.maxScore}</TableCell>
-                                                        <TableCell>
+                                                        <TableCell className="truncate max-w-[200px]">{assignment?.title ?? 'Unknown Assignment'}</TableCell>
+                                                        <TableCell className={`text-right font-medium ${scoreColor}`}>{grade.score}/{grade.maxScore}</TableCell>
+                                                        <TableCell className="text-right">
                                                             <Button variant="outline" size="sm" disabled>Edit Grade</Button>
                                                         </TableCell>
                                                     </TableRow>
@@ -463,7 +476,22 @@ export function ProfessorDashboard() {
                     </Card>
 
                 </CardContent>
+                 <CardFooter className="border-t p-4 bg-secondary/10 rounded-b-lg">
+                    <p className="text-xs text-muted-foreground">Currently managing "{selectedCourseForManagement.title}". Select another course above to switch.</p>
+                 </CardFooter>
             </Card>
+        )}
+
+        {/* Conditionally render message if no course is selected for management */}
+        {!selectedCourseForManagement && professorCourses.length > 0 && (
+             <Card className="border-dashed border-primary/50">
+                <CardHeader>
+                    <CardTitle>Select a Course</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-muted-foreground">Click the "Manage" button on a course in the "My Courses" section above to view and manage its details here.</p>
+                </CardContent>
+             </Card>
         )}
 
 
@@ -494,7 +522,7 @@ export function ProfessorDashboard() {
                    <AlertDescription>{reviewError}</AlertDescription>
                  </Alert>
              )}
-            <Button type="submit" disabled={isReviewing} className="w-full">
+            <Button type="submit" disabled={isReviewing} className="w-full bg-accent hover:bg-accent/90">
               {isReviewing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Review Response with AI
             </Button>
