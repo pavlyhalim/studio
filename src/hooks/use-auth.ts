@@ -12,16 +12,16 @@ export const useAuth = () => {
   }
   // Explicitly return all fields from the context for clarity and type safety
   return {
-    user: context.user,
-    userData: context.userData, // Add userData
-    sampleUserId: context.sampleUserId, // Add sampleUserId
+    user: context.user, // Now contains basic user info { id, email, name, role }
+    // userData is removed, info is in user object now
+    sampleUserId: context.sampleUserId, // Keep for demo mode
     loading: context.loading,
-    signInWithGoogle: context.signInWithGoogle,
-    signInWithEmailPassword: context.signInWithEmailPassword, // Add email/pass sign in
-    signUpWithEmailPassword: context.signUpWithEmailPassword, // Add email/pass sign up
+    // signInWithGoogle is removed
+    signInWithEmailPassword: context.signInWithEmailPassword,
+    signUpWithEmailPassword: context.signUpWithEmailPassword,
     signOut: context.signOut,
     role: context.role,
     setRole: context.setRole,
-    isFirebaseReady: context.isFirebaseReady, // Expose Firebase readiness flag
+    // isFirebaseReady is removed
   };
 };

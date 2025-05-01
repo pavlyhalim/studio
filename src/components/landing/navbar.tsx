@@ -11,7 +11,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 
 export function Navbar() {
-  const { user, userData, loading, signOut, isFirebaseReady } = useAuth(); // Added userData
+  // Use updated hook, remove userData and isFirebaseReady
+  const { user, loading, signOut } = useAuth();
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return "?";
@@ -47,10 +48,10 @@ export function Navbar() {
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-10 w-10 rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     <Avatar className="h-10 w-10 border-2 border-primary/20 hover:border-primary/50 transition-colors">
-                        {/* Use user.photoURL from Auth, fallback to initials from userData or Auth */}
-                        <AvatarImage src={user.photoURL ?? undefined} alt={userData?.name ?? user.displayName ?? 'User'} />
+                        {/* Use user.name, fallback to 'User' */}
+                        {/* Removed photoURL */}
                         <AvatarFallback className="bg-muted text-muted-foreground">
-                          {getInitials(userData?.name ?? user.displayName)}
+                          {getInitials(user?.name)}
                         </AvatarFallback>
                     </Avatar>
                     </Button>
@@ -58,10 +59,10 @@ export function Navbar() {
                 <DropdownMenuContent className="w-60 shadow-xl border border-border/20" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal py-2">
                     <div className="flex flex-col space-y-1">
-                        {/* Use name from userData if available, fallback to Auth displayName */}
-                        <p className="text-sm font-medium leading-none text-foreground">{userData?.name ?? user.displayName ?? 'User'}</p>
+                        {/* Use user.name */}
+                        <p className="text-sm font-medium leading-none text-foreground">{user?.name ?? 'User'}</p>
                         <p className="text-xs leading-none text-muted-foreground">
-                        {user.email}
+                        {user?.email}
                         </p>
                     </div>
                     </DropdownMenuLabel>
@@ -89,31 +90,13 @@ export function Navbar() {
                 </DropdownMenu>
             ) : (
                 <>
-                {!isFirebaseReady ? ( // Show tooltip if Firebase isn't ready
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <div className="flex items-center space-x-4">
-                                <Button variant="outline" disabled className="cursor-not-allowed">
-                                    <AlertTriangle className="h-4 w-4 mr-2 text-destructive" /> Log In Disabled
-                                </Button>
-                                <Button variant="default" disabled className="cursor-not-allowed">Sign Up Disabled</Button>
-                            </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="bottom">
-                            <p className="text-xs text-destructive">Firebase not configured. Sign-in unavailable.</p>
-                        </TooltipContent>
-                    </Tooltip>
-                ) : ( // Show normal buttons if Firebase is ready
-                    <>
-                        <Link href="/login" passHref legacyBehavior>
-                            <Button variant="outline" className="hover:bg-accent/10 border-primary/30 hover:border-accent transition-colors">Log In</Button>
-                        </Link>
-                        {/* Link Sign Up button to the sign-up page */}
-                        <Link href="/signup" passHref legacyBehavior>
-                            <Button variant="default" className="bg-accent hover:bg-accent/90">Sign Up</Button>
-                        </Link>
-                    </>
-                )}
+                    {/* Removed Firebase readiness check and tooltip */}
+                    <Link href="/login" passHref legacyBehavior>
+                        <Button variant="outline" className="hover:bg-accent/10 border-primary/30 hover:border-accent transition-colors">Log In</Button>
+                    </Link>
+                    <Link href="/signup" passHref legacyBehavior>
+                        <Button variant="default" className="bg-accent hover:bg-accent/90">Sign Up</Button>
+                    </Link>
                 </>
             )}
             </div>

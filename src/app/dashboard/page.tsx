@@ -14,8 +14,8 @@ import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
-    // role from useAuth now reflects Firestore data if logged in, or demo role if not
-    const { user, userData, loading, role, setRole } = useAuth();
+    // Use updated hook: `user` is now SimpleUser | null
+    const { user, loading, role, setRole } = useAuth();
     const { toast } = useToast();
     // Local state manages the dropdown selection visually
     const [selectedRole, setSelectedRole] = useState<UserRole>(role);
@@ -102,12 +102,14 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle>Select Your Role</CardTitle>
                <CardDescription>
+                 {/* Updated message for when user exists but role is unknown */}
                  {user ? "Your role could not be determined." : "Please choose a demo role from the dropdown above to view the corresponding dashboard."}
                </CardDescription>
             </CardHeader>
             <CardContent>
               <p>
-                {user ? "User data might be missing or incomplete." : "Use the role selector above to explore different dashboard views in this demo application."}
+                {/* Updated message for when user exists but role is unknown */}
+                {user ? "Your account role might be missing or invalid." : "Use the role selector above to explore different dashboard views in this demo application."}
               </p>
             </CardContent>
           </Card>
@@ -126,7 +128,8 @@ export default function DashboardPage() {
                       {user ? "Your Role" : "Demo Role Selector"}
                     </CardTitle>
                     <CardDescription>
-                       {user ? `You are logged in as a ${role || 'user'}.` : "Switch between dashboard views for demonstration purposes."}
+                       {/* Use the role determined by context */}
+                       {user ? `You are logged in as a ${role || 'user with undetermined role'}.` : "Switch between dashboard views for demonstration purposes."}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
