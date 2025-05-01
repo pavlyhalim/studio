@@ -1,8 +1,10 @@
 
 import { NextResponse } from 'next/server';
 import { mockUsersDb, createSampleUser, type User } from '@/lib/sample-data'; // Use mock DB and create helper
+import bcrypt from 'bcrypt';
 
-// IMPORTANT: This simulates a basic signup flow. Real apps need robust security.
+// IMPORTANT: This is now closer to production, but still uses a mock DB. Replace with real DB logic.
+const saltRounds = 10; // Standard salt rounds for bcrypt
 
 export async function POST(request: Request) {
   try {
@@ -16,7 +18,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ message: 'Password must be at least 6 characters long' }, { status: 400 });
     }
 
-    // --- Simulate Database Check ---
+    // --- Database Check ---
     const lowerCaseEmail = email.toLowerCase();
     if (mockUsersDb.has(lowerCaseEmail)) {
       console.log(`Signup attempt failed: Email ${lowerCaseEmail} already registered.`);
@@ -24,17 +26,25 @@ export async function POST(request: Request) {
     }
     // ---------------------------------
 
-    // --- Simulate User Creation ---
-    // IMPORTANT: Real apps MUST hash passwords securely using bcrypt.
-    // Use the helper to create a user object with a simulated hash
-    const newUserObject = createSampleUser({ name, email: lowerCaseEmail, passwordPlain: password, role: 'student' }); // Default role
+    // --- User Creation with Secure Hashing ---
+    // Hash the password using bcrypt
+    const passwordHash = await bcrypt.hash(password, saltRounds); // Use await for async hashing
+
+    // Use the helper, but provide the hash directly
+    // Note: createSampleUser modified to accept hash directly or generate one if passwordPlain is given
+    const newUserObject = createSampleUser({
+        name,
+        email: lowerCaseEmail,
+        role: 'student', // Default role
+        passwordHash: passwordHash, // Pass the generated hash
+    });
 
     // Add to mock DB
     mockUsersDb.set(lowerCaseEmail, newUserObject);
-    console.log("Mock DB Updated (Signup):", { id: newUserObject.id, email: newUserObject.email, name: newUserObject.name, role: newUserObject.role }); // Don't log password/hash
+    console.log("Mock DB Updated (Signup):", { id: newUserObject.id, email: newUserObject.email, name: newUserObject.name, role: newUserObject.role }); // Don't log hash
     // -----------------------------
 
-    // --- Simulate Session/Token Generation ---
+    // --- Session/Token Generation ---
     // IMPORTANT: Real apps need secure JWT or session management.
     const token = `simulated-token-for-${newUserObject.id}-${Date.now()}`;
     // -----------------------------------------
@@ -54,6 +64,10 @@ export async function POST(request: Request) {
 
   } catch (error) {
     console.error('Signup API Error:', error);
+    // Check if it's a bcrypt error or other type
+    if (error instanceof Error) {
+        return NextResponse.json({ message: error.message || 'An internal server error occurred during hashing.' }, { status: 500 });
+    }
     return NextResponse.json({ message: 'An internal server error occurred' }, { status: 500 });
   }
 }

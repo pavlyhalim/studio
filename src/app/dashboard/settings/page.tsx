@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, type FormEvent, useEffect } from "react"; // Import useEffect
@@ -63,7 +64,7 @@ export default function SettingsPage() {
   }, [user, loading, router]);
 
 
-  // --- Handlers (Simulated) ---
+  // --- Handlers (Simulated API calls - Replace with actual calls) ---
 
   const handleUpdateProfile = async (e: FormEvent) => {
     e.preventDefault();
@@ -75,13 +76,21 @@ export default function SettingsPage() {
     setIsUpdatingProfile(true);
 
     try {
-        // Simulate API Call
-        console.log("Simulating update profile with name:", name);
+        // *** TODO: Replace with actual API Call ***
+        console.log("Simulating API call to update profile with name:", name);
         await new Promise(res => setTimeout(res, 1000));
-        // In a real app, call API: await api.updateProfile({ name });
-        // Then update the user context or refetch user data
-        // For demo, update local state (Auth context update needs implementation)
-        // updateUserContext({ ...user, name }); // Hypothetical function in useAuth
+        // Example API call:
+        // const response = await fetch('/api/user/profile', {
+        //     method: 'PUT',
+        //     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionToken}` }, // Assume sessionToken is available
+        //     body: JSON.stringify({ name }),
+        // });
+        // if (!response.ok) {
+        //     const errorData = await response.json();
+        //     throw new Error(errorData.message || 'Failed to update profile.');
+        // }
+        // const updatedUser = await response.json();
+        // updateUserContext(updatedUser); // Update context
 
         toast({ title: "Profile Updated", description: "Your name has been updated (simulated)." });
     } catch (error: any) {
@@ -115,10 +124,27 @@ export default function SettingsPage() {
 
     setIsChangingPassword(true);
     try {
-      // Simulate API Call
-        console.log("Simulating password change...");
-        await new Promise(res => setTimeout(res, 1500));
-        // In a real app: await api.changePassword({ currentPassword, newPassword });
+      // *** TODO: Replace with actual API Call ***
+        console.log("Simulating API call to change password...");
+        // Example API call:
+        // const response = await fetch('/api/user/password', {
+        //     method: 'PUT',
+        //     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionToken}` }, // Assume sessionToken is available
+        //     body: JSON.stringify({ currentPassword, newPassword }),
+        // });
+        // if (!response.ok) {
+        //     const errorData = await response.json();
+        //     throw new Error(errorData.message || 'Failed to change password.');
+        // }
+        await new Promise((resolve, reject) => setTimeout(() => {
+             // Simulate success/failure based on a mock check (replace with API result)
+            if (currentPassword === "wrongpassword") { // Simulate incorrect current password
+                reject(new Error("Incorrect current password."));
+            } else {
+                resolve(true);
+            }
+        }, 1500));
+
 
       toast({ title: "Password Changed", description: "Your password has been updated successfully (simulated)." });
       // Clear password fields after success
@@ -126,8 +152,7 @@ export default function SettingsPage() {
       setNewPassword('');
       setConfirmNewPassword('');
     } catch (error: any) {
-        // Simulate common errors
-        const message = error.message?.includes('incorrect') ? "Incorrect current password." : "Failed to change password.";
+        const message = error.message || "Failed to change password.";
         setPasswordError(message);
         toast({ title: "Password Change Failed", description: message, variant: "destructive" });
     } finally {
@@ -138,10 +163,19 @@ export default function SettingsPage() {
   const handleDeleteAccount = async () => {
     setIsDeletingAccount(true);
     try {
-        // Simulate API Call
-        console.log("Simulating account deletion...");
+        // *** TODO: Replace with actual API Call ***
+        console.log("Simulating API call for account deletion...");
+        // Example API call:
+        // const response = await fetch('/api/user/account', {
+        //     method: 'DELETE',
+        //     headers: { 'Authorization': `Bearer ${sessionToken}` }, // Assume sessionToken is available
+        // });
+        // if (!response.ok) {
+        //     const errorData = await response.json();
+        //     throw new Error(errorData.message || 'Could not delete account.');
+        // }
         await new Promise(res => setTimeout(res, 2000));
-        // In a real app: await api.deleteAccount();
+
         toast({ title: "Account Deleted", description: "Your account has been permanently deleted (simulated)." });
         await signOut(); // Sign out the user after deletion
         // Redirect handled by AuthProvider or router push

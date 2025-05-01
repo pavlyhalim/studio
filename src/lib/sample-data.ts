@@ -1,4 +1,7 @@
+
 // src/lib/sample-data.ts
+import bcrypt from 'bcrypt';
+const saltRounds = 10; // Consistent salt rounds
 
 export interface Course {
   id: string;
@@ -12,8 +15,7 @@ export interface User {
     name: string;
     email: string;
     role: 'student' | 'professor' | 'admin';
-    // IMPORTANT: In a real app, this MUST be a securely hashed password (e.g., using bcrypt).
-    // For demo purposes, we simulate a 'hash'.
+    // Represents the securely hashed password
     passwordHash: string;
 }
 
@@ -69,31 +71,41 @@ export const mockUsersDb = new Map<string, User>();
 // --------------------------------------------------------------------
 
 // Initial Sample Data - Populates the mock DB on server start.
-// They should NOT be mutated directly by components or helper functions after initial load.
+// Using plain passwords here ONLY for initial seeding hash generation.
+// Do NOT use plain passwords in production code after this initial setup.
 export const initialSampleUsersData: Omit<User, 'id' | 'passwordHash'> & { passwordPlain: string }[] = [
     { name: 'Alice Student', email: 'alice@example.com', role: 'student', passwordPlain: 'password123' },
     { name: 'Bob Learner', email: 'bob@example.com', role: 'student', passwordPlain: 'password123' },
     { name: 'Charlie Curious', email: 'charlie@example.com', role: 'student', passwordPlain: 'password123' },
     { name: 'Dr. Charles Xavier', email: 'prof.x@example.com', role: 'professor', passwordPlain: 'password456' },
     { name: 'Dr. Eleanor Arroway', email: 'dr.e.arroway@example.com', role: 'professor', passwordPlain: 'password456' },
-    { name: 'Admin User', email: 'admin@example.com', role: 'admin', passwordPlain: 'password789' },
+    { name: 'Admin User', email: 'admin@example.com', role: 'admin', passwordPlain: 'adminpass' }, // Changed default admin pass
 ];
 
-// Populate the mock DB
+// Populate the mock DB with hashed passwords
 initialSampleUsersData.forEach((userData, index) => {
     const userId = `${userData.role}-${index + 1}`;
+    // Hash the password during initial setup
+    const passwordHash = bcrypt.hashSync(userData.passwordPlain, saltRounds);
     const user: User = {
         id: userId,
         name: userData.name,
         email: userData.email,
         role: userData.role,
-        // IMPORTANT: Simulate hashing. NEVER store plain passwords in real apps.
-        passwordHash: `simulated_hash_for_${userData.passwordPlain}`,
+        passwordHash: passwordHash,
     };
     mockUsersDb.set(user.email.toLowerCase(), user);
 });
 
-export const initialSampleUsers: User[] = Array.from(mockUsersDb.values());
+// Function to get the initial users (used by admin dashboard etc.)
+// This should return users *without* the password hash for client-side use.
+export const getInitialSampleUsersForClient = (): Omit<User, 'passwordHash'>[] => {
+     return Array.from(mockUsersDb.values()).map(({ passwordHash, ...userWithoutHash }) => userWithoutHash);
+};
+
+// Keep the original initialSampleUsers (with hashes) for server-side checks if needed,
+// but avoid exporting it directly if possible to prevent accidental client-side exposure.
+// For this example, we'll rely on mockUsersDb for server lookups.
 
 export const initialSampleCourses: Course[] = [
   {
@@ -168,12 +180,16 @@ export const getCoursesByProfessor = (professorId: string): Course[] => {
 };
 
 // Get students enrolled in a specific course
-export const getStudentsInCourse = (courseId: string): User[] => {
+export const getStudentsInCourse = (courseId: string): Omit<User, 'passwordHash'>[] => {
     const studentIds = initialSampleEnrollments
         .filter(enrollment => enrollment.courseId === courseId)
         .map(enrollment => enrollment.studentId);
-    return initialSampleUsers.filter(user => user.role === 'student' && studentIds.includes(user.id));
+    const studentsWithHashes = Array.from(mockUsersDb.values())
+                                   .filter(user => user.role === 'student' && studentIds.includes(user.id));
+    // Remove hash before returning
+    return studentsWithHashes.map(({ passwordHash, ...userWithoutHash }) => userWithoutHash);
 };
+
 
 // Get courses a student is enrolled in
 export const getCoursesByStudent = (studentId: string): Course[] => {
@@ -260,21 +276,28 @@ export const createSampleFile = (fileData: Omit<UploadedFile, 'id' | 'uploadDate
 }
 
 // Simulate creating a new user object (used internally by signup API route)
-export const createSampleUser = (userData: Omit<User, 'id' | 'passwordHash'> & { passwordPlain: string }): User => {
-    // Check should be done in the API route before calling this
+// Now accepts an optional passwordHash. If passwordPlain is provided instead, it will hash it (for initial seeding).
+export const createSampleUser = (userData: Omit<User, 'id' | 'passwordHash'> & { passwordPlain?: string; passwordHash?: string }): User => {
+    if (!userData.passwordHash && !userData.passwordPlain) {
+        throw new Error("Must provide either passwordPlain or passwordHash to createSampleUser");
+    }
+    // Prefer provided hash, otherwise hash the plain password
+    const hash = userData.passwordHash ?? bcrypt.hashSync(userData.passwordPlain!, saltRounds);
+
     return {
         id: `${userData.role}-${userData.name.split(' ')[0].toLowerCase()}-${Date.now().toString().slice(-4)}`,
         name: userData.name,
         email: userData.email,
         role: userData.role,
-        // IMPORTANT: Simulate hashing. NEVER store plain passwords in real apps.
-        passwordHash: `simulated_hash_for_${userData.passwordPlain}`,
+        passwordHash: hash,
     };
 };
+
 
 // Simulate creating a new course object
 export const createSampleCourse = (courseData: Omit<Course, 'id'>): Course | { error: string } => {
     // Check if course with this title already exists in initial data
+    // NOTE: This check is against initial data, not the live mockUsersDb - adjust if needed for dynamic course creation demo
     if (initialSampleCourses.some(c => c.title.toLowerCase() === courseData.title.toLowerCase())) {
         console.warn(`Course with title "${courseData.title}" already exists in initial data. Cannot simulate creation.`);
         return { error: `Course with title "${courseData.title}" already exists.` };
