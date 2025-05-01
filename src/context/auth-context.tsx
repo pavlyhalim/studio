@@ -98,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Log the full error for debugging, including specific codes if available
     // Check if error.code exists before logging it
-    console.error(`${action} Error:`, errorMessage, error);
+    console.error(`${action} Error:`, error?.code, errorMessage, error);
 
     toast({
         title: title,
@@ -226,3 +226,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Render children directly while loading, initial check happens client-side
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
+

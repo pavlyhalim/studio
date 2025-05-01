@@ -18,6 +18,7 @@ export async function DELETE(request: Request) {
     }
 
     // Find user in mock DB by ID (replace with real DB lookup)
+    // Use the imported mockUsersDb directly
     let userFromDb;
     let userEmailKey: string | null = null;
     for (const [emailKey, userEntry] of mockUsersDb.entries()) {
@@ -37,6 +38,7 @@ export async function DELETE(request: Request) {
     // 2. Perform Account Deletion in Database (Simulated)
     // IMPORTANT: Replace with actual database delete operation.
     // Also handle cascading deletes (enrollments, grades, etc.) in a real backend.
+    // Use the imported mockUsersDb directly
     const deleted = mockUsersDb.delete(userEmailKey);
 
     if (deleted) {
@@ -59,3 +61,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ message: 'An internal server error occurred' }, { status: 500 });
   }
 }
+

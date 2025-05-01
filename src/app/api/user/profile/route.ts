@@ -18,6 +18,7 @@ export async function PUT(request: Request) {
     }
 
     // Find user in mock DB by ID (replace with real DB lookup)
+    // Use the imported mockUsersDb directly
     let userFromDb;
     for (const userEntry of mockUsersDb.values()) {
         if (userEntry.id === userIdFromToken) {
@@ -43,6 +44,7 @@ export async function PUT(request: Request) {
     // 3. Update Profile in Database (Simulated)
     // IMPORTANT: Replace with actual database update operation.
     userFromDb.name = trimmedName;
+    // Use the imported mockUsersDb directly
     mockUsersDb.set(userFromDb.email.toLowerCase(), userFromDb); // Update the mock DB entry
     console.log(`Profile name updated for user ${userFromDb.email} to "${trimmedName}"`);
     // --- End of Simulated DB Update ---
@@ -65,3 +67,4 @@ export async function PUT(request: Request) {
     return NextResponse.json({ message: 'An internal server error occurred' }, { status: 500 });
   }
 }
+
