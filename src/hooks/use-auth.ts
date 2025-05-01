@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useContext } from 'react';
@@ -14,9 +13,12 @@ export const useAuth = () => {
   // Explicitly return all fields from the context for clarity and type safety
   return {
     user: context.user,
-    userId: context.userId, // Ensure userId is included
+    userData: context.userData, // Add userData
+    sampleUserId: context.sampleUserId, // Add sampleUserId
     loading: context.loading,
     signInWithGoogle: context.signInWithGoogle,
+    signInWithEmailPassword: context.signInWithEmailPassword, // Add email/pass sign in
+    signUpWithEmailPassword: context.signUpWithEmailPassword, // Add email/pass sign up
     signOut: context.signOut,
     role: context.role,
     setRole: context.setRole,

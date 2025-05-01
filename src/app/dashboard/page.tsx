@@ -1,4 +1,3 @@
-
 "use client"; // Required for useState, useEffect, and interactive components
 
 import { useState, useEffect } from 'react';
@@ -8,52 +7,66 @@ import { useAuth, type UserRole } from '@/hooks/use-auth';
 import { StudentDashboard } from '@/components/dashboard/student/student-dashboard';
 import { ProfessorDashboard } from '@/components/dashboard/professor/professor-dashboard';
 import { AdminDashboard } from '@/components/dashboard/admin/admin-dashboard';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'; // Added CardDescription
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardPage() {
-    const { user, loading, role, setRole } = useAuth();
-    const { toast } = useToast(); // Get toast function
-    // Local state to manage role selection in demo mode, initialized with role from AuthContext
+    // role from useAuth now reflects Firestore data if logged in, or demo role if not
+    const { user, userData, loading, role, setRole } = useAuth();
+    const { toast } = useToast();
+    // Local state manages the dropdown selection visually
     const [selectedRole, setSelectedRole] = useState<UserRole>(role);
 
-    // Update local state if role from context changes (e.g., on login/logout or initial load)
+    // Update local dropdown state if the effective role from context changes
     useEffect(() => {
+        console.log("DashboardPage: Effective role from context changed to:", role);
         setSelectedRole(role);
     }, [role]);
 
 
-    // Handle role change from the dropdown selector
+    // Handle role change from the dropdown selector (FOR DEMO PURPOSES WHEN LOGGED OUT)
     const handleRoleChange = (newRole: string) => {
         const validRole = newRole as UserRole;
-        if (validRole && ['student', 'professor', 'admin'].includes(validRole)) {
-             console.log("Role selected in dropdown:", validRole);
-             // Add check to ensure setRole is a function before calling
-             if (typeof setRole === 'function') {
-                setRole(validRole); // Update role in AuthContext (and consequently the derived userId)
-             } else {
-                 console.error("setRole is not available or not a function in AuthContext.");
-                 toast({
-                    title: "Error",
-                    description: "Could not change role.",
-                    variant: "destructive",
-                 });
-             }
-            setSelectedRole(validRole); // Update local state to immediately reflect change
+        // Only allow setting the role via dropdown if the user is NOT logged in
+        if (!user) {
+            if (validRole && ['student', 'professor', 'admin'].includes(validRole)) {
+                 console.log("Role selected in dropdown (demo mode):", validRole);
+                 if (typeof setRole === 'function') {
+                    // setRole now only updates the demo state if logged out
+                    setRole(validRole);
+                 } else {
+                     console.error("setRole is not available or not a function in AuthContext.");
+                     toast({
+                        title: "Error",
+                        description: "Could not change demo role.",
+                        variant: "destructive",
+                     });
+                 }
+                // Update local state immediately to reflect change in dropdown
+                setSelectedRole(validRole);
+            } else {
+                console.warn("Invalid role selected:", newRole);
+                 if (typeof setRole === 'function') {
+                    setRole(null); // Reset context demo role if invalid selection
+                 }
+                setSelectedRole(null); // Reset local state
+            }
         } else {
-            console.warn("Invalid role selected:", newRole);
-             if (typeof setRole === 'function') {
-                setRole(null); // Reset context role if invalid selection
-             }
-            setSelectedRole(null); // Reset local state
+            console.log("Dropdown change ignored: User is logged in. Role is determined by user data.");
+            toast({
+                title: "Role Locked",
+                description: "Cannot change role via dropdown while logged in.",
+            });
+            // Ensure dropdown visually reverts to the actual role if user tries to change it
+            setSelectedRole(role);
         }
     };
 
 
-    // Show loading state while checking auth status
+    // Show loading state while checking auth status or fetching user data
     if (loading) {
         return (
              <div className="flex flex-col min-h-screen">
@@ -75,8 +88,8 @@ export default function DashboardPage() {
 
 
   const renderDashboardContent = () => {
-    console.log("Rendering dashboard for role:", selectedRole); // Use selectedRole for rendering
-    switch (selectedRole) {
+    console.log("Rendering dashboard for effective role:", role); // Render based on effective role from context
+    switch (role) { // Use role from useAuth
       case 'student':
         return <StudentDashboard />;
       case 'professor':
@@ -88,10 +101,14 @@ export default function DashboardPage() {
           <Card className="shadow-lg border-dashed border-primary/30">
             <CardHeader>
               <CardTitle>Select Your Role</CardTitle>
-               <CardDescription>Please choose a role from the dropdown above to view the corresponding dashboard.</CardDescription>
+               <CardDescription>
+                 {user ? "Your role could not be determined." : "Please choose a demo role from the dropdown above to view the corresponding dashboard."}
+               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Use the role selector above to explore different dashboard views in this demo application.</p>
+              <p>
+                {user ? "User data might be missing or incomplete." : "Use the role selector above to explore different dashboard views in this demo application."}
+              </p>
             </CardContent>
           </Card>
         );
@@ -99,22 +116,26 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-secondary/5"> {/* Subtle background */}
+    <div className="flex flex-col min-h-screen bg-secondary/5">
         <Navbar />
-        <main className="flex-grow container mx-auto px-4 py-8 space-y-8"> {/* Increased spacing */}
-             {/* Temporary Role Selector for Demo */}
-             <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-border shadow-sm overflow-hidden"> {/* Subtle gradient and styling */}
+        <main className="flex-grow container mx-auto px-4 py-8 space-y-8">
+             {/* Role Selector */}
+             <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-border shadow-sm overflow-hidden">
                 <CardHeader>
-                    <CardTitle className="text-xl text-primary">Demo Role Selector</CardTitle>
-                    <CardDescription>Switch between dashboard views for demonstration purposes.</CardDescription>
+                    <CardTitle className="text-xl text-primary">
+                      {user ? "Your Role" : "Demo Role Selector"}
+                    </CardTitle>
+                    <CardDescription>
+                       {user ? `You are logged in as a ${role || 'user'}.` : "Switch between dashboard views for demonstration purposes."}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
                      <div className="flex items-center space-x-2 flex-shrink-0">
                         <Label htmlFor="role-select" className="text-base font-medium text-foreground">Select Role:</Label>
                         <Select
-                            value={selectedRole ?? ''} // Ensure value matches the state
+                            value={selectedRole ?? ''} // Ensure dropdown reflects local state
                             onValueChange={handleRoleChange}
-                            // disabled={!!user} // Keep enabled for demo purposes
+                            disabled={!!user} // Disable dropdown if user is logged in
                         >
                             <SelectTrigger id="role-select" className="w-[180px] bg-background shadow-inner">
                                 <SelectValue placeholder="Select role" />
@@ -126,11 +147,13 @@ export default function DashboardPage() {
                             </SelectContent>
                         </Select>
                      </div>
-                     <p className="text-sm text-muted-foreground italic">(This selector allows viewing different dashboards in this demo.)</p>
+                     <p className="text-sm text-muted-foreground italic">
+                         {user ? "(Role is determined by your account.)" : "(Select a role to view the demo dashboard.)"}
+                     </p>
                 </CardContent>
              </Card>
 
-            {/* Render the appropriate dashboard based on the selected role with transition */}
+            {/* Render the appropriate dashboard based on the effective role */}
             <div className="transition-opacity duration-300 ease-in-out">
                 {renderDashboardContent()}
             </div>

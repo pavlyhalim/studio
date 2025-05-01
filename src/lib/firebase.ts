@@ -1,10 +1,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, type Auth } from "firebase/auth"; // Import Auth type
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics"; // Import Analytics type
-
-// import { getFirestore } from "firebase/firestore"; // Uncomment if using Firestore
-// import { getFunctions } from "firebase/functions"; // Uncomment if using Cloud Functions
-// import { getStorage } from "firebase/storage"; // Uncomment if using Cloud Storage
+import { getFirestore, type Firestore } from "firebase/firestore"; // Import Firestore
 
 // --- IMPORTANT: Configuration Error Handling ---
 // Errors like "auth/configuration-not-found" or "installations/request-failed" (400 INVALID_ARGUMENT: API key not valid) usually mean:
@@ -17,28 +14,33 @@ import { getAnalytics, isSupported, type Analytics } from "firebase/analytics"; 
 const firebaseConfig = {
     // Read from environment variables, provide explicit placeholders as fallback
     apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "YOUR_API_KEY",
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "alant-d8eb8.firebaseapp.com",
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "alant-d8eb8",
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "alant-d8eb8.appspot.com",
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "249545022065",
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET",
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "YOUR_APP_ID",
-    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-487727789" // Optional
+    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "YOUR_MEASUREMENT_ID" // Optional
   };
 
 // --- Configuration Validation ---
-const isApiKeyInvalid = !firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY" || firebaseConfig.apiKey.length < 10; // Basic check
-const isAppIdInvalid = !firebaseConfig.appId || firebaseConfig.appId === "YOUR_APP_ID" || !firebaseConfig.appId.includes(":"); // Basic check
+// Basic validation function
+const isConfigInvalid = (config: typeof firebaseConfig): boolean => {
+    return Object.entries(config).some(([key, value]) =>
+        key !== 'measurementId' && // measurementId is optional
+        (!value || value.startsWith('YOUR_') || (key === 'apiKey' && value.length < 10) || (key === 'appId' && !value.includes(':')))
+    );
+};
 
-if (isApiKeyInvalid || isAppIdInvalid) {
+if (isConfigInvalid(firebaseConfig)) {
     console.error( // Use error for critical config issues
         "🚨 CRITICAL FIREBASE CONFIG ERROR 🚨\n" +
-        `Firebase configuration values in src/lib/firebase.ts appear to be placeholders or invalid (API Key: ${isApiKeyInvalid ? 'INVALID/MISSING' : 'OK'}, App ID: ${isAppIdInvalid ? 'INVALID/MISSING' : 'OK'}).\n` +
+        `Firebase configuration values in src/lib/firebase.ts or environment variables appear to be placeholders or invalid.\n` +
         "Authentication and other Firebase services WILL FAIL.\n" +
-        "1. Ensure Firebase Authentication is ENABLED in your Firebase Console (and any other required services).\n" +
+        "1. Ensure Firebase Authentication (and Firestore, etc.) is ENABLED in your Firebase Console.\n" +
         "2. Update your .env file (or environment variables) with your ACTUAL Firebase project configuration values for:\n" +
-        `   - NEXT_PUBLIC_FIREBASE_API_KEY (currently looks ${isApiKeyInvalid ? 'INVALID' : 'valid'})\n` +
-        `   - NEXT_PUBLIC_FIREBASE_APP_ID (currently looks ${isAppIdInvalid ? 'INVALID' : 'valid'})\n` +
-        "   - ... and other NEXT_PUBLIC_FIREBASE_* variables.\n" +
+        Object.entries(firebaseConfig)
+            .map(([key, value]) => `   - NEXT_PUBLIC_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}${key === 'measurementId' ? ' (Optional)' : ''}`)
+            .join('\n') + '\n' +
         "3. Get your config from Firebase Console: Project settings > General > Your apps > Web app > Config.\n" +
         "4. Restart your Next.js development server after updating environment variables."
     );
@@ -54,11 +56,12 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let googleProvider: GoogleAuthProvider | null = null;
 let analytics: Analytics | null = null;
+let db: Firestore | null = null; // Add Firestore instance variable
 
 if (!getApps().length) {
     try {
         // Attempt initialization only if config doesn't look obviously invalid
-        if (!isApiKeyInvalid && !isAppIdInvalid) {
+        if (!isConfigInvalid(firebaseConfig)) {
             app = initializeApp(firebaseConfig);
             console.log("Firebase app initialization attempted.");
         } else {
@@ -90,6 +93,13 @@ if (app) {
         }
     }
 
+    try {
+        db = getFirestore(app); // Initialize Firestore
+        console.log("Firestore initialized.");
+    } catch (e) {
+        console.error("Firestore init error:", e);
+    }
+
     // Initialize Analytics only if supported by the browser environment
     if (typeof window !== 'undefined') {
         isSupported().then((supported) => {
@@ -109,13 +119,12 @@ if (app) {
     }
 
     // Uncomment and initialize other services as needed
-    // let db = null; try { db = getFirestore(app); console.log("Firestore initialized."); } catch (e) { console.error("Firestore init error:", e); }
     // let functions = null; try { functions = getFunctions(app); console.log("Cloud Functions initialized."); } catch (e) { console.error("Functions init error:", e); }
     // let storage = null; try { storage = getStorage(app); console.log("Cloud Storage initialized."); } catch (e) { console.error("Storage init error:", e); }
 
-} else if (!isApiKeyInvalid && !isAppIdInvalid) { // Only show this error if config wasn't obviously wrong initially
-    console.error("Firebase app was not initialized successfully, likely due to an error during initializeApp(). Firebase services (Auth, Analytics, etc.) will not be available.");
+} else if (!isConfigInvalid(firebaseConfig)) { // Only show this error if config wasn't obviously wrong initially
+    console.error("Firebase app was not initialized successfully, likely due to an error during initializeApp(). Firebase services (Auth, Firestore, etc.) will not be available.");
 }
 
 // Export potentially null values - consuming code MUST check for null before using
-export { app, auth, googleProvider, analytics /*, db, functions, storage */ };
+export { app, auth, googleProvider, analytics, db }; // Export db
