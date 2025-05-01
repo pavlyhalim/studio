@@ -14,6 +14,8 @@ import {
     getUpcomingAssignmentsForStudent,
     getRecentGradesForStudent,
     getAnnouncementsForStudent,
+    sampleUsers, // Import sampleUsers
+    sampleAssignments, // Import assignments for grades lookup
     type Course,
     type Enrollment,
     type Assignment,
