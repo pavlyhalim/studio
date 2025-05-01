@@ -27,7 +27,7 @@ export function HeroSection() {
             </Link>
             {/* Link Learn More button to features section */}
             <Link href="#features" passHref legacyBehavior>
-                <Button size="lg" variant="outline" className="shadow-md transform hover:scale-105 transition-transform duration-200">Learn More</Button>
+                <Button size="lg" variant="outline" className="shadow-md transform hover:scale-105 transition-transform duration-200 border-primary/50 text-primary hover:bg-primary/5">Learn More</Button>
             </Link>
           </div>
         </div>
@@ -46,6 +46,7 @@ export function HeroSection() {
       </div>
 
       {/* Basic keyframes for animation (add to globals.css or keep here if scoped CSS is used) */}
+      {/* styled-jsx requires "use client" */}
       <style jsx global>{`
         @keyframes fadeInLeft {
           from { opacity: 0; transform: translateX(-20px); }
@@ -61,3 +62,4 @@ export function HeroSection() {
     </section>
   );
 }
+

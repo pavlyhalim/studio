@@ -24,7 +24,7 @@ export function CallToActionSection() {
               <Button
                 size="lg"
                 variant="outline" // Changed back to outline for contrast
-                className="border-primary-foreground text-primary-foreground hover:bg-primary-foreground hover:text-primary shadow-md transform hover:scale-105 transition-transform duration-200" // Added effects
+                className="border-primary-foreground/50 text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground shadow-md transform hover:scale-105 transition-transform duration-200" // Adjusted hover, added effects
               >
                 Request a Demo
               </Button>
@@ -33,6 +33,7 @@ export function CallToActionSection() {
       </div>
 
       {/* Keyframes for bounce animation */}
+      {/* styled-jsx requires "use client" */}
        <style jsx global>{`
         @keyframes bounce {
           0%, 100% { transform: translateY(-15%); animation-timing-function: cubic-bezier(0.8,0,1,1); }
