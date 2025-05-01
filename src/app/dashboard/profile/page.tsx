@@ -1,7 +1,8 @@
-
 "use client";
 
+import { useEffect } from 'react'; // Import useEffect
 import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from 'next/navigation'; // Import useRouter
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,14 @@ import { Badge } from "@/components/ui/badge";
 
 export default function ProfilePage() {
   const { user, loading } = useAuth();
+  const router = useRouter(); // Initialize router
+
+  // Redirect if not authenticated after loading
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login?redirect=/dashboard/profile');
+    }
+  }, [user, loading, router]);
 
   const getInitials = (name: string | null | undefined) => {
     if (!name) return "?";
@@ -21,7 +30,7 @@ export default function ProfilePage() {
     return names[0][0].toUpperCase() + names[names.length - 1][0].toUpperCase();
   };
 
-  if (loading) {
+  if (loading || !user) { // Show loading or nothing until redirect happens
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -29,25 +38,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (!user) {
-    // Ideally, should be redirected by middleware or page layout, but good to have a fallback
-    return (
-      <Card className="max-w-md mx-auto mt-10">
-        <CardHeader>
-          <CardTitle>Access Denied</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>Please log in to view your profile.</p>
-        </CardContent>
-        <CardFooter>
-          <Link href="/login" passHref legacyBehavior>
-            <Button>Go to Login</Button>
-          </Link>
-        </CardFooter>
-      </Card>
-    );
-  }
-
+  // User is authenticated and loaded
   return (
     <Card className="max-w-2xl mx-auto shadow-lg border-border/30">
       <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5 rounded-t-lg p-6">

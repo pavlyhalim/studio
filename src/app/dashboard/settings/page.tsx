@@ -1,8 +1,8 @@
-
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, useEffect } from "react"; // Import useEffect
 import { useAuth } from "@/hooks/use-auth";
+import { useRouter } from 'next/navigation'; // Import useRouter
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -26,8 +26,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
 export default function SettingsPage() {
-  const { user, loading, signOut } = useAuth(); // TODO: Add functions for profile/password update
+  const { user, loading, signOut } = useAuth();
   const { toast } = useToast();
+  const router = useRouter(); // Initialize router
 
   // State for forms
   const [name, setName] = useState(user?.name || '');
@@ -45,11 +46,22 @@ export default function SettingsPage() {
   const [profileError, setProfileError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  // Update name on component mount/user change
-  useState(() => {
-    setName(user?.name || '');
-    setEmail(user?.email || '');
-  });
+  // Update name/email on component mount/user change
+   useEffect(() => {
+     if (user) {
+       setName(user.name || '');
+       setEmail(user.email || '');
+     }
+   }, [user]);
+
+
+  // Redirect if not authenticated after loading
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login?redirect=/dashboard/settings');
+    }
+  }, [user, loading, router]);
+
 
   // --- Handlers (Simulated) ---
 
@@ -133,6 +145,7 @@ export default function SettingsPage() {
         toast({ title: "Account Deleted", description: "Your account has been permanently deleted (simulated)." });
         await signOut(); // Sign out the user after deletion
         // Redirect handled by AuthProvider or router push
+        router.push('/'); // Explicit redirect after sign out
     } catch (error: any) {
         toast({ title: "Deletion Failed", description: error.message || "Could not delete account.", variant: "destructive" });
         setIsDeletingAccount(false);
@@ -140,7 +153,7 @@ export default function SettingsPage() {
     // No finally needed if navigating away
   };
 
-  if (loading) {
+  if (loading || !user) { // Show loading or nothing until redirect happens
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -148,24 +161,7 @@ export default function SettingsPage() {
     );
   }
 
-  if (!user) {
-    return (
-      <Card className="max-w-md mx-auto mt-10">
-        <CardHeader>
-          <CardTitle>Access Denied</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>Please log in to access settings.</p>
-        </CardContent>
-        <CardFooter>
-          <Link href="/login" passHref legacyBehavior>
-            <Button>Go to Login</Button>
-          </Link>
-        </CardFooter>
-      </Card>
-    );
-  }
-
+  // User is authenticated and loaded
   return (
     <div className="max-w-3xl mx-auto space-y-8">
       <h1 className="text-3xl font-bold text-primary">Account Settings</h1>
