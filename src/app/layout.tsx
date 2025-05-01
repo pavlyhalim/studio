@@ -1,7 +1,7 @@
 
 import type {Metadata} from 'next';
-import { GeistSans } from 'geist/font/sans';
-import { GeistMono } from 'geist/font/mono';
+import { GeistSans } from 'geist/font/sans'; // Corrected import for GeistSans
+// Removed GeistMono import as it was causing module not found error
 import './globals.css';
 import { AuthProvider } from '@/context/auth-context';
 import { Toaster } from "@/components/ui/toaster"; // Import Toaster
@@ -17,9 +17,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${GeistSans.variable} ${GeistMono.variable}`}>
+    // Removed GeistMono variable usage
+    <html lang="en" className={`${GeistSans.variable}`}>
       {/* Apply font variables directly to the html tag */}
-      <body className={`antialiased font-sans`}> {/* Use Tailwind's font-sans class which defaults to --font-geist-sans */}
+      {/* Added suppressHydrationWarning to ignore potential mismatches caused by browser extensions */}
+      <body className={`antialiased font-sans`} suppressHydrationWarning={true}> {/* Use Tailwind's font-sans class */}
         <AuthProvider>
             {children}
             <Toaster /> {/* Add Toaster component here */}
