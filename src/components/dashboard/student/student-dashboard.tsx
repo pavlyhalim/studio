@@ -16,6 +16,7 @@ import {
     getAnnouncementsForStudent,
     sampleUsers, // Import sampleUsers
     sampleAssignments, // Import assignments for grades lookup
+    sampleGrades, // Import sampleGrades for analytics
     updateSampleEnrollments, // Import the update function
     type Course,
     type Enrollment,
@@ -23,10 +24,12 @@ import {
     type Grade,
     type Announcement
 } from '@/lib/sample-data';
-import { PlusCircle, CheckCircle, BookOpen, Clock, FileText, Award, Megaphone } from 'lucide-react'; // Added icons
+import { PlusCircle, CheckCircle, BookOpen, Clock, FileText, Award, Megaphone, Wand2, BarChart2 } from 'lucide-react'; // Added icons
 import { useToast } from '@/hooks/use-toast';
 import { format, formatDistanceToNow } from 'date-fns'; // For date formatting
 import { Badge } from '@/components/ui/badge';
+import { StudyPlannerDialog } from './study-planner-dialog'; // Import Study Planner Dialog
+import { ProgressAnalyticsDialog } from './progress-analytics-dialog'; // Import Progress Analytics Dialog
 
 export function StudentDashboard() {
   const { userId } = useAuth(); // Get the sample userId
@@ -37,7 +40,7 @@ export function StudentDashboard() {
   const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
   const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
   const [upcomingAssignments, setUpcomingAssignments] = useState<Assignment[]>([]);
-  const [recentGrades, setRecentGrades] = useState<Grade[]>([]);
+  const [recentGrades, setRecentGrades] = useState<Grade[]>([]); // Use full grades list for analytics
   const [recentAnnouncements, setRecentAnnouncements] = useState<Announcement[]>([]);
 
   useEffect(() => {
@@ -55,8 +58,9 @@ export function StudentDashboard() {
 
         // Fetch other student-specific data using helpers (these read from global samples)
         setUpcomingAssignments(getUpcomingAssignmentsForStudent(userId, 14)); // Look 2 weeks ahead
-        setRecentGrades(getRecentGradesForStudent(userId, 5));
-        setRecentAnnouncements(getAnnouncementsForStudent(userId, 5));
+        // Get ALL grades for the student for analytics, not just recent
+        setRecentGrades(sampleGrades.filter(grade => grade.studentId === userId));
+        setRecentAnnouncements(getAnnouncementsForStudent(userId, 5)); // Keep recent announcements limited
 
     } else {
         // If no userId (not logged in or role mismatch in demo), show defaults
@@ -64,7 +68,7 @@ export function StudentDashboard() {
         setAvailableCourses(initialSampleCourses); // Show all as available
         // Do not reset enrollments here, let it persist unless explicitly changed
         setUpcomingAssignments([]);
-        setRecentGrades([]);
+        setRecentGrades([]); // Clear grades if no user
         setRecentAnnouncements([]);
     }
   }, [userId, enrollments]); // Rerun when userId or local enrollments change
@@ -214,17 +218,16 @@ export function StudentDashboard() {
                      <CardDescription>Your latest assignment results.</CardDescription>
                   </CardHeader>
                   <CardContent>
-                     {recentGrades.length > 0 ? (
+                     {/* Display only a few recent grades here, analytics dialog shows all */}
+                      {recentGrades.length > 0 ? (
                         <ScrollArea className="h-40">
                             <ul className="space-y-2">
-                                {recentGrades.map(grade => {
-                                     // Find assignment from global sample data
+                                {/* Sort grades by date descending for display */}
+                                {recentGrades.sort((a, b) => b.gradedDate.getTime() - a.gradedDate.getTime()).slice(0, 5).map(grade => {
                                      const assignment = sampleAssignments.find(a => a.id === grade.assignmentId);
-                                     // Find course from the student's *enrolled* courses state
                                      const course = enrolledCourses.find(c => c.id === grade.courseId);
                                      const percentage = grade.maxScore > 0 ? ((grade.score / grade.maxScore) * 100).toFixed(0) : 'N/A';
                                      const scoreValid = !isNaN(parseInt(percentage));
-                                     // Determine badge variant based on percentage
                                      const variant : "success" | "secondary" | "destructive" | "default" | "outline" | null | undefined = scoreValid ? (parseInt(percentage) >= 80 ? "success" : parseInt(percentage) >= 60 ? "secondary" : "destructive") : "outline";
 
                                     return (
@@ -249,6 +252,14 @@ export function StudentDashboard() {
                         <p className="text-sm text-muted-foreground text-center py-4">No recent grades.</p>
                      )}
                   </CardContent>
+                   <CardFooter>
+                       {/* Link to Progress Analytics Dialog */}
+                       <ProgressAnalyticsDialog
+                           grades={recentGrades} // Pass all grades
+                           assignments={sampleAssignments}
+                           enrolledCourses={enrolledCourses}
+                        />
+                   </CardFooter>
                 </Card>
 
                  {/* Recent Announcements */}
@@ -262,9 +273,7 @@ export function StudentDashboard() {
                             <ScrollArea className="h-48">
                                 <ul className="space-y-3">
                                     {recentAnnouncements.map(ann => {
-                                        // Find course from the student's *enrolled* courses state
                                         const course = enrolledCourses.find(c => c.id === ann.courseId);
-                                        // Find professor from global sample data
                                         const professor = sampleUsers.find(u => u.id === ann.professorId);
                                         return (
                                              <li key={ann.id} className="text-sm p-3 border rounded bg-secondary/10 shadow-sm">
@@ -294,31 +303,36 @@ export function StudentDashboard() {
        </div>
 
 
-       {/* Other potential student sections (Placeholders) */}
+       {/* Functional Student Sections */}
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
            <Card>
                 <CardHeader>
-                <CardTitle>Study Planner</CardTitle>
+                    <CardTitle className="flex items-center gap-2"><Wand2 className="h-5 w-5 text-primary"/> Study Planner</CardTitle>
+                    <CardDescription>Generate an AI-powered study plan based on your courses and goals.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                <p className="text-muted-foreground">AI Study planner feature placeholder...</p>
-                {/* TODO: Implement Study Planner */}
-                <Button variant="outline" className="mt-2" disabled>Open Planner</Button>
+                    {/* Study Planner Dialog Trigger */}
+                     <StudyPlannerDialog
+                        enrolledCourses={enrolledCourses}
+                        upcomingAssignments={upcomingAssignments}
+                     />
                 </CardContent>
             </Card>
              <Card>
               <CardHeader>
-                <CardTitle>My Progress</CardTitle>
+                <CardTitle className="flex items-center gap-2"><BarChart2 className="h-5 w-5 text-primary"/> My Progress</CardTitle>
+                <CardDescription>View your overall course progress and performance analytics.</CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">Overall course progress and performance analytics...</p>
-                {/* TODO: Show progress charts/summaries */}
-                 <Button variant="outline" className="mt-2" disabled>View Analytics</Button>
+                 {/* Progress Analytics Dialog Trigger */}
+                  <ProgressAnalyticsDialog
+                     grades={recentGrades} // Pass all grades
+                     assignments={sampleAssignments}
+                     enrolledCourses={enrolledCourses}
+                   />
               </CardContent>
             </Card>
        </div>
     </div>
   );
 }
-
-// Removed SuccessBadge and Badge augmentation as explicit className or variant="success" is used.
