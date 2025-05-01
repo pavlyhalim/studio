@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -5,13 +6,12 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, LayoutDashboard, GraduationCap, AlertTriangle } from 'lucide-react';
+import { LogOut, User, Settings, LayoutDashboard, GraduationCap } from 'lucide-react'; // Removed AlertTriangle
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 
 export function Navbar() {
-  // Use updated hook, remove userData and isFirebaseReady
   const { user, loading, signOut } = useAuth();
 
   const getInitials = (name: string | null | undefined) => {
@@ -48,8 +48,6 @@ export function Navbar() {
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-10 w-10 rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                     <Avatar className="h-10 w-10 border-2 border-primary/20 hover:border-primary/50 transition-colors">
-                        {/* Use user.name, fallback to 'User' */}
-                        {/* Removed photoURL */}
                         <AvatarFallback className="bg-muted text-muted-foreground">
                           {getInitials(user?.name)}
                         </AvatarFallback>
@@ -59,7 +57,6 @@ export function Navbar() {
                 <DropdownMenuContent className="w-60 shadow-xl border border-border/20" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal py-2">
                     <div className="flex flex-col space-y-1">
-                        {/* Use user.name */}
                         <p className="text-sm font-medium leading-none text-foreground">{user?.name ?? 'User'}</p>
                         <p className="text-xs leading-none text-muted-foreground">
                         {user?.email}
@@ -73,14 +70,20 @@ export function Navbar() {
                         <span>Dashboard</span>
                     </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem disabled className="cursor-not-allowed opacity-50 hover:bg-accent/10">
-                    <User className="mr-2 h-4 w-4" />
-                    <span>Profile</span>
+                    {/* Add Profile Link */}
+                    <DropdownMenuItem asChild className="cursor-pointer hover:bg-accent/10">
+                        <Link href="/dashboard/profile">
+                            <User className="mr-2 h-4 w-4" />
+                            <span>Profile</span>
+                        </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem disabled className="cursor-not-allowed opacity-50 hover:bg-accent/10">
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                    </DropdownMenuItem>
+                    {/* Add Settings Link */}
+                     <DropdownMenuItem asChild className="cursor-pointer hover:bg-accent/10">
+                        <Link href="/dashboard/settings">
+                            <Settings className="mr-2 h-4 w-4" />
+                            <span>Settings</span>
+                         </Link>
+                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={signOut} className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive hover:bg-destructive/10 hover:text-destructive">
                     <LogOut className="mr-2 h-4 w-4" />
@@ -90,7 +93,6 @@ export function Navbar() {
                 </DropdownMenu>
             ) : (
                 <>
-                    {/* Removed Firebase readiness check and tooltip */}
                     <Link href="/login" passHref legacyBehavior>
                         <Button variant="outline" className="hover:bg-accent/10 border-primary/30 hover:border-accent transition-colors">Log In</Button>
                     </Link>
