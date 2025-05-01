@@ -1,18 +1,8 @@
-import { NextResponse } from 'next/server';
-import { initialSampleUsers } from '@/lib/sample-data'; // Use initial data for simulation
 
-// --- Mock Users (Assume shared state or DB in real app) ---
-const mockUsersDb = new Map<string, { id: string; name: string; email: string; passwordHash: string; role: 'student' | 'professor' | 'admin' | null }>();
-initialSampleUsers.forEach(u => {
-    mockUsersDb.set(u.email.toLowerCase(), {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        passwordHash: `hashed_${u.id}_password`, // Simulate hash
-        role: u.role,
-    });
-});
-// ------------------------------------------------------------
+import { NextResponse } from 'next/server';
+import { mockUsersDb, type User } from '@/lib/sample-data'; // Use mock DB
+
+// IMPORTANT: This simulates validating a session token. Real apps need secure JWT/session validation.
 
 export async function GET(request: Request) {
   try {
@@ -29,11 +19,13 @@ export async function GET(request: Request) {
     const userIdFromToken = userIdMatch ? userIdMatch[1] : null;
 
     if (!userIdFromToken) {
+         console.log("Unauthorized: Invalid token format", token);
          return NextResponse.json({ message: 'Unauthorized: Invalid token format' }, { status: 401 });
     }
 
-    // Find user in mock DB by ID
-    let userFromDb: { id: string; name: string; email: string; role: 'student' | 'professor' | 'admin' | null } | undefined;
+    // Find user in mock DB by ID (replace with real DB lookup)
+    // Use the imported mockUsersDb directly
+    let userFromDb: User | undefined;
     for (const userEntry of mockUsersDb.values()) {
         if (userEntry.id === userIdFromToken) {
             userFromDb = userEntry;
@@ -41,15 +33,15 @@ export async function GET(request: Request) {
         }
     }
 
-
     if (!userFromDb) {
-      // Simulate token expired or user not found
+      // Simulate token expired or user not found (e.g., user deleted after token issued)
+      console.log(`Unauthorized: User not found for ID ${userIdFromToken} derived from token`);
       return NextResponse.json({ message: 'Unauthorized: User not found or token expired' }, { status: 401 });
     }
     // -----------------------------------------------
 
     // Return basic user info (exclude password hash)
-    const userResponse = {
+    const userResponse: Omit<User, 'passwordHash'> = {
         id: userFromDb.id,
         email: userFromDb.email,
         name: userFromDb.name,
