@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -10,12 +11,12 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Loader2, AlertTriangle, UserPlus, Mail, Lock, User as UserIcon } from "lucide-react"; // Import icons
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-// Removed Separator import
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 export default function SignUpPage() {
-    // Use updated useAuth hook
     const { user, loading, signUpWithEmailPassword } = useAuth();
     const router = useRouter();
+    const { toast } = useToast(); // Get toast function
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -24,7 +25,6 @@ export default function SignUpPage() {
     const [passwordError, setPasswordError] = useState<string | null>(null);
 
     useEffect(() => {
-        // Redirect to dashboard if user is already logged in and not loading
         if (!loading && user) {
             router.push('/dashboard');
         }
@@ -32,12 +32,9 @@ export default function SignUpPage() {
 
     const handleSignUp = async (e: FormEvent) => {
          e.preventDefault();
-         setPasswordError(null); // Reset password error
-
-        // Removed isFirebaseReady check
+         setPasswordError(null);
 
         if (!name || !email || !password || !confirmPassword) {
-            // Basic validation
              toast({ title: "Missing Fields", description: "Please fill all required fields.", variant: "destructive" });
             return;
         }
@@ -45,31 +42,30 @@ export default function SignUpPage() {
             setPasswordError("Passwords do not match.");
             return;
         }
-        if (password.length < 6) { // Keep basic password length check
+        if (password.length < 6) {
              setPasswordError("Password must be at least 6 characters long.");
              return;
         }
 
          setIsSubmitting(true);
          try {
-             // Call the traditional auth simulation function
              await signUpWithEmailPassword(name, email, password);
-              // Redirect is handled by the useEffect hook after state change
+             // Redirect is handled by the useEffect hook after successful signup state update
          } catch (error) {
-             // Error handling is done within the AuthContext
-            console.error("SignUp page: Email/Password Sign-Up Error:", error);
+            // Error is already handled and toasted within AuthContext/handleAuthError
+            console.error("SignUp page: Email/Password Sign-Up Error (already handled):", error);
          } finally {
             setIsSubmitting(false);
          }
     };
 
-    // Show loading state
     if (loading || isSubmitting) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-secondary/30 to-background">
                  <Card className="w-full max-w-md shadow-xl">
                     <CardHeader className="text-center">
-                        <CardTitle className="text-2xl font-bold text-primary">
+                        <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
+                           <Loader2 className="h-6 w-6 animate-spin" />
                            {isSubmitting ? 'Creating Account...' : 'Loading'}
                         </CardTitle>
                         <CardDescription>
@@ -84,9 +80,8 @@ export default function SignUpPage() {
         );
     }
 
-     // Don't render sign-up form if user is logged in
     if (user) {
-        return null;
+        return null; // Don't render sign-up form if user is logged in
     }
 
 
@@ -100,9 +95,7 @@ export default function SignUpPage() {
                     <CardDescription>Join ALANT Lite by creating an account.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                     {/* Removed Firebase not ready alert */}
 
-                    {/* Sign-up Form */}
                      <form onSubmit={handleSignUp} className="space-y-4">
                          <div className="relative">
                            <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -113,7 +106,7 @@ export default function SignUpPage() {
                                 required
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                disabled={isSubmitting} // Removed isFirebaseReady check
+                                disabled={isSubmitting}
                                 className="pl-10"
                                 autoComplete="name"
                             />
@@ -127,7 +120,7 @@ export default function SignUpPage() {
                                 required
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                disabled={isSubmitting} // Removed isFirebaseReady check
+                                disabled={isSubmitting}
                                 className="pl-10"
                                 autoComplete="email"
                              />
@@ -141,7 +134,7 @@ export default function SignUpPage() {
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                disabled={isSubmitting} // Removed isFirebaseReady check
+                                disabled={isSubmitting}
                                 className="pl-10"
                                 autoComplete="new-password"
                              />
@@ -155,7 +148,7 @@ export default function SignUpPage() {
                                 required
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
-                                disabled={isSubmitting} // Removed isFirebaseReady check
+                                disabled={isSubmitting}
                                 className={`pl-10 ${passwordError ? 'border-destructive focus-visible:ring-destructive' : ''}`}
                                 autoComplete="new-password"
                              />
@@ -165,15 +158,13 @@ export default function SignUpPage() {
                          )}
                         <Button
                             type="submit"
-                            className="w-full bg-accent hover:bg-accent/90" // Use accent color for sign up
-                            disabled={isSubmitting} // Removed isFirebaseReady check
+                            className="w-full bg-accent hover:bg-accent/90"
+                            disabled={isSubmitting}
                         >
                             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
                             Sign Up
                         </Button>
                     </form>
-
-                      {/* Removed Separator and Google Sign-up */}
 
                 </CardContent>
                 <CardFooter className="flex flex-col items-center space-y-3 pt-6 border-t">
@@ -192,8 +183,5 @@ export default function SignUpPage() {
     );
 }
 
-// Added toast import needed for validation message
-import { useToast } from '@/hooks/use-toast';
 
-// Added toast initialization needed for validation message
-const { toast } = useToast();
+    

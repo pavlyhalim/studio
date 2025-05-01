@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ReactNode } from 'react';
@@ -6,8 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { initialSampleUsers } from "@/lib/sample-data"; // For initial demo state
 
 // --- Traditional Auth Simulation ---
-// This replaces Firebase Auth. It simulates API calls.
-// In a real app, these would call your backend API.
+// This simulates API calls to a backend.
 
 // Define possible roles
 export type UserRole = 'student' | 'professor' | 'admin' | null;
@@ -29,50 +29,34 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   role: UserRole;
   setRole: (role: UserRole) => void; // Allow setting demo role when logged out
-  // isFirebaseReady is removed
 }
 
 const initialDemoRole: UserRole = 'student'; // Default to student for demo
 
 const getInitialSampleUserId = (role: UserRole): string | null => {
     const user = initialSampleUsers.find(u => u.role === role);
-    return user?.id ?? null;
+    return user?.id ?? initialSampleUsers[0]?.id ?? null; // Fallback to first user if role match fails
 };
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// --- Mock Users (Replace with actual DB in real backend) ---
-// Store mock users in memory for simulation purposes
-const mockUsersDb = new Map<string, { id: string; name: string; email: string; passwordHash: string; role: UserRole }>();
-// Add initial sample users to the mock DB (passwords are NOT real/hashed properly)
-initialSampleUsers.forEach(u => {
-    mockUsersDb.set(u.email.toLowerCase(), {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        passwordHash: `hashed_${u.id}_password`, // Simulate a hash
-        role: u.role,
-    });
-});
-// ------------------------------------------------------------
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SimpleUser | null>(null); // Use SimpleUser
-  const [loading, setLoading] = useState(true); // Still useful for API call simulation
+  const [loading, setLoading] = useState(true); // Start loading until session check is done
   const { toast } = useToast();
   const [demoRole, setDemoRoleInternal] = useState<UserRole>(initialDemoRole);
   const [sampleUserId, setSampleUserId] = useState<string | null>(getInitialSampleUserId(initialDemoRole));
   const [sessionToken, setSessionToken] = useState<string | null>(null); // Simulate session/token
 
-  // Simulate checking for existing session on mount
+  // Wrap session check in useEffect to run only on the client
   useEffect(() => {
     const checkSession = async () => {
-        setLoading(true);
-        // Simulate checking localStorage or cookie for a token
-        const storedToken = localStorage.getItem('authToken'); // Example storage
+        setLoading(true); // Ensure loading state is true during check
+        // Access localStorage only inside useEffect
+        const storedToken = localStorage.getItem('authToken');
         if (storedToken) {
             try {
-                // Simulate API call to validate token and get user data
                 const response = await fetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${storedToken}` }
                 });
@@ -80,12 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     const userData: SimpleUser = await response.json();
                     setUser(userData);
                     setSessionToken(storedToken);
-                    setDemoRoleInternal(null); // Clear demo state
+                    setDemoRoleInternal(null);
                     setSampleUserId(null);
                     console.log("AuthProvider: Session restored for user:", userData.email);
                 } else {
-                    // Token invalid or expired
-                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('authToken'); // Clear invalid token
                     setUser(null);
                     setSessionToken(null);
                     setDemoRoleInternal(initialDemoRole);
@@ -93,11 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
             } catch (error) {
                 console.error("AuthProvider: Error checking session:", error);
-                localStorage.removeItem('authToken');
+                localStorage.removeItem('authToken'); // Clear token on error
                 setUser(null);
                 setSessionToken(null);
-                 setDemoRoleInternal(initialDemoRole);
-                 setSampleUserId(getInitialSampleUserId(initialDemoRole));
+                setDemoRoleInternal(initialDemoRole);
+                setSampleUserId(getInitialSampleUserId(initialDemoRole));
             }
         } else {
              // No token found, set initial demo state
@@ -106,31 +89,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
              setDemoRoleInternal(initialDemoRole);
              setSampleUserId(getInitialSampleUserId(initialDemoRole));
         }
-        setLoading(false);
+        setLoading(false); // Set loading to false after check completes
     };
-    checkSession();
-  }, []);
 
+    checkSession();
+  }, []); // Empty dependency array ensures this runs only once on the client after mount
+
+
+  // Simplified error handling for API simulation
   const handleAuthError = (error: any, action: "Sign-In" | "Sign-Up" | "Sign-Out" | "Session Check") => {
-    // Simplified error handling for simulation
     let errorMessage = `An error occurred during ${action}. Please try again.`;
+    let title = `${action} Failed`;
+
     if (error instanceof Error) {
         errorMessage = error.message; // Use message from simulated API error
+    } else if (typeof error === 'string') {
+        errorMessage = error;
     }
-    console.error(`${action} Error:`, error);
+
+    console.error(`${action} Error:`, errorMessage, error); // Log the full error if available
+
     toast({
-        title: `${action} Failed`,
+        title: title,
         description: errorMessage,
         variant: "destructive",
     });
   };
 
-  // Removed signInWithGoogle
 
   const signInWithEmailPassword = async (email: string, pass: string) => {
     setLoading(true);
     try {
-        // Simulate API call
         const response = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -144,19 +133,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const { token, user: userData } = await response.json();
 
-        // Simulate successful login
         setUser(userData);
         setSessionToken(token);
-        localStorage.setItem('authToken', token); // Store token (insecure simulation)
-        setDemoRoleInternal(null); // Clear demo state
+        localStorage.setItem('authToken', token); // Access localStorage safely here (client-side)
+        setDemoRoleInternal(null);
         setSampleUserId(null);
         toast({ title: "Successfully signed in." });
 
     } catch (error: any) {
         handleAuthError(error, "Sign-In");
-        setUser(null); // Ensure user is null on error
+        setUser(null);
         setSessionToken(null);
-        localStorage.removeItem('authToken');
+        localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
+        // Re-throw the error so the component knows the login failed
+        throw error;
     } finally {
         setLoading(false);
     }
@@ -165,7 +155,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
  const signUpWithEmailPassword = async (name: string, email: string, pass: string) => {
     setLoading(true);
     try {
-        // Simulate API call
         const response = await fetch('/api/auth/signup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -179,19 +168,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const { token, user: newUser } = await response.json();
 
-        // Simulate successful signup and login
         setUser(newUser);
         setSessionToken(token);
-        localStorage.setItem('authToken', token); // Store token (insecure simulation)
-         setDemoRoleInternal(null); // Clear demo state
-         setSampleUserId(null);
+        localStorage.setItem('authToken', token); // Access localStorage safely here (client-side)
+        setDemoRoleInternal(null);
+        setSampleUserId(null);
         toast({ title: "Account created successfully!" });
 
     } catch (error: any) {
         handleAuthError(error, "Sign-Up");
-         setUser(null); // Ensure user is null on error
-         setSessionToken(null);
-         localStorage.removeItem('authToken');
+        setUser(null);
+        setSessionToken(null);
+        localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
+        // Re-throw the error so the component knows the signup failed
+        throw error;
     } finally {
         setLoading(false);
     }
@@ -201,14 +191,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     setLoading(true);
     try {
-        // Simulate API call to logout endpoint (optional, could just clear client-side)
+        // Simulate API call to logout endpoint (optional)
         // await fetch('/api/auth/logout', { method: 'POST' });
 
-        // Clear client-side session
         setUser(null);
         setSessionToken(null);
-        localStorage.removeItem('authToken'); // Remove token
-        setDemoRoleInternal(initialDemoRole); // Reset demo state
+        localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
+        setDemoRoleInternal(initialDemoRole);
         setSampleUserId(getInitialSampleUserId(initialDemoRole));
         toast({ title: "Successfully signed out." });
     } catch (error: any) {
@@ -218,7 +207,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Set demo role logic remains the same
   const setRole = useCallback((newRole: UserRole) => {
     if (!user) {
         const newSampleUserId = getInitialSampleUserId(newRole);
@@ -232,43 +220,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const currentRole = useMemo(() => {
     if (user) {
-        return user.role; // Use role from logged-in user object
+        return user.role;
     }
-    return demoRole; // Use demo role if not logged in
+    return demoRole;
   }, [user, demoRole]);
 
   const value = useMemo(() => ({
     user,
-    // userData is removed, use `user` which now includes role etc.
     loading,
     sampleUserId,
-    // signInWithGoogle is removed
     signInWithEmailPassword,
     signUpWithEmailPassword,
     signOut,
     role: currentRole,
     setRole,
-    // isFirebaseReady is removed
   }), [
       user,
       loading,
       sampleUserId,
-      signInWithEmailPassword,
-      signUpWithEmailPassword,
-      signOut,
       currentRole,
       setRole,
+      signInWithEmailPassword, // Functions are now stable due to useCallback or being outside
+      signUpWithEmailPassword,
+      signOut
     ]);
 
-  // Render loading indicator only during initial session check
-  // Use a simpler loading indicator
-  if (loading) {
-    return (
-        <div className="flex items-center justify-center min-h-screen bg-background">
-            Loading Application...
-        </div>
-    );
-  }
 
+  // Render children directly while loading, initial check happens client-side
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -11,51 +12,48 @@ import Link from "next/link";
 import { Loader2, AlertTriangle, LogIn, UserPlus, Mail, Lock } from "lucide-react"; // Import icons
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
+import { useToast } from '@/hooks/use-toast'; // Import useToast
 
 export default function LoginPage() {
-    // Use updated useAuth hook
     const { user, loading, signInWithEmailPassword } = useAuth();
     const router = useRouter();
+    const { toast } = useToast(); // Get toast function
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false); // Local submitting state
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
-        // Redirect to dashboard if user is already logged in and not loading
         if (!loading && user) {
             router.push('/dashboard');
         }
     }, [user, loading, router]);
 
-    // Removed handleGoogleSignIn
-
     const handleEmailPasswordSignIn = async (e: FormEvent) => {
          e.preventDefault();
-        // Removed isFirebaseReady check
         if (!email || !password) {
-            // Basic validation, AuthContext will handle more specific errors via simulated API call
+            toast({ title: "Missing Fields", description: "Email and password are required.", variant: "destructive" });
             return;
         }
-         setIsSubmitting(true); // Set submitting state
+         setIsSubmitting(true);
          try {
              await signInWithEmailPassword(email, password);
-              // Redirect is handled by the useEffect hook
+             // Redirect is handled by the useEffect hook after successful login state update
          } catch (error) {
-             // Error handling is done within the AuthContext
-            console.error("Login page: Email/Password Sign-In Error:", error);
+             // Error is already handled and toasted within AuthContext/handleAuthError
+            console.error("Login page: Email/Password Sign-In Error (already handled):", error);
          } finally {
-            setIsSubmitting(false); // Reset submitting state
+            setIsSubmitting(false);
          }
     };
 
 
-    // Show loading state while checking auth status or during sign-in/submit
-    if (loading || isSubmitting) { // Combine loading checks
+    if (loading || isSubmitting) {
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-secondary/30 to-background">
                  <Card className="w-full max-w-md shadow-xl">
                     <CardHeader className="text-center">
-                        <CardTitle className="text-2xl font-bold text-primary">
+                        <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
+                           <Loader2 className="h-6 w-6 animate-spin" />
                            {isSubmitting ? 'Signing In...' : 'Loading'}
                         </CardTitle>
                         <CardDescription>
@@ -70,9 +68,8 @@ export default function LoginPage() {
         );
     }
 
-     // Don't render login form if user is logged in (before redirect happens)
     if (user) {
-        return null;
+        return null; // Don't render login form if user is logged in (before redirect)
     }
 
 
@@ -86,9 +83,7 @@ export default function LoginPage() {
                     <CardDescription>Sign in to access your ALANT Lite dashboard.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {/* Removed Firebase not ready alert */}
 
-                    {/* Email/Password Form */}
                      <form onSubmit={handleEmailPasswordSignIn} className="space-y-4">
                         <div className="relative">
                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -99,8 +94,8 @@ export default function LoginPage() {
                                 required
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                disabled={isSubmitting} // Removed isFirebaseReady check
-                                className="pl-10" // Add padding for icon
+                                disabled={isSubmitting}
+                                className="pl-10"
                                 autoComplete="email"
                              />
                         </div>
@@ -113,22 +108,20 @@ export default function LoginPage() {
                                 required
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                disabled={isSubmitting} // Removed isFirebaseReady check
-                                className="pl-10" // Add padding for icon
+                                disabled={isSubmitting}
+                                className="pl-10"
                                 autoComplete="current-password"
                              />
                         </div>
                         <Button
                             type="submit"
-                            className="w-full bg-primary hover:bg-primary/90" // Use primary color for main login action
-                            disabled={isSubmitting} // Removed isFirebaseReady check
+                            className="w-full bg-primary hover:bg-primary/90"
+                            disabled={isSubmitting}
                         >
                             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
                             Sign In
                         </Button>
                     </form>
-
-                    {/* Removed Google Sign-In and Separator */}
 
                 </CardContent>
                 <CardFooter className="flex flex-col items-center space-y-3 pt-6 border-t">
@@ -149,3 +142,6 @@ export default function LoginPage() {
         </div>
     );
 }
+
+
+    
