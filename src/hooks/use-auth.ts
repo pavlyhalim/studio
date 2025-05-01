@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useContext } from 'react';
@@ -13,15 +14,12 @@ export const useAuth = () => {
   // Explicitly return all fields from the context for clarity and type safety
   return {
     user: context.user, // Now contains basic user info { id, email, name, role }
-    // userData is removed, info is in user object now
-    sampleUserId: context.sampleUserId, // Keep for demo mode
+    // sampleUserId is removed
     loading: context.loading,
-    // signInWithGoogle is removed
-    signInWithEmailPassword: context.signInWithEmailPassword,
-    signUpWithEmailPassword: context.signUpWithEmailPassword,
+    signInWithEmailPassword: context.signInWithEmailPassword, // Returns boolean
+    signUpWithEmailPassword: context.signUpWithEmailPassword, // Returns boolean
     signOut: context.signOut,
     role: context.role,
-    setRole: context.setRole,
-    // isFirebaseReady is removed
+    // setRole is removed
   };
 };

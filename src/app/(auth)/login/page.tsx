@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Loader2, AlertTriangle, LogIn, UserPlus, Mail, Lock } from "lucide-react"; // Import icons
@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast'; // Import useToast
 export default function LoginPage() {
     const { user, loading, signInWithEmailPassword } = useAuth();
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { toast } = useToast(); // Get toast function
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -24,9 +25,11 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (!loading && user) {
-            router.push('/dashboard');
+            // Redirect to intended destination or dashboard
+            const redirectUrl = searchParams.get('redirect') || '/dashboard';
+            router.push(redirectUrl);
         }
-    }, [user, loading, router]);
+    }, [user, loading, router, searchParams]);
 
     const handleEmailPasswordSignIn = async (e: FormEvent) => {
          e.preventDefault();
@@ -35,29 +38,31 @@ export default function LoginPage() {
             return;
         }
          setIsSubmitting(true);
-         try {
-             await signInWithEmailPassword(email, password);
-             // Redirect is handled by the useEffect hook after successful login state update
-         } catch (error) {
-             // Error is already handled and toasted within AuthContext/handleAuthError
-            console.error("Login page: Email/Password Sign-In Error (already handled):", error);
-         } finally {
-            setIsSubmitting(false);
+         // signInWithEmailPassword now returns true on success, false on failure
+         const success = await signInWithEmailPassword(email, password);
+
+         if (!success) {
+             // Error is already handled (logged and toasted) within AuthContext
+             console.log("Login page: Email/Password Sign-In Failed (handled by context)");
          }
+         // Redirect is handled by the useEffect hook upon successful login state update
+
+         // Always set submitting false after attempt, regardless of success/failure
+         setIsSubmitting(false);
     };
 
 
-    if (loading || isSubmitting) {
+    if (loading) { // Only show loader based on auth loading state
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-secondary/30 to-background">
                  <Card className="w-full max-w-md shadow-xl">
                     <CardHeader className="text-center">
                         <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
                            <Loader2 className="h-6 w-6 animate-spin" />
-                           {isSubmitting ? 'Signing In...' : 'Loading'}
+                           Loading
                         </CardTitle>
                         <CardDescription>
-                            {isSubmitting ? 'Please wait...' : 'Checking your login status...'}
+                            Checking your login status...
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="flex justify-center items-center py-10">
@@ -142,6 +147,3 @@ export default function LoginPage() {
         </div>
     );
 }
-
-
-    

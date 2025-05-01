@@ -48,28 +48,30 @@ export default function SignUpPage() {
         }
 
          setIsSubmitting(true);
-         try {
-             await signUpWithEmailPassword(name, email, password);
-             // Redirect is handled by the useEffect hook after successful signup state update
-         } catch (error) {
-            // Error is already handled and toasted within AuthContext/handleAuthError
-            console.error("SignUp page: Email/Password Sign-Up Error (already handled):", error);
-         } finally {
-            setIsSubmitting(false);
+         // signUpWithEmailPassword now returns true on success, false on failure
+         const success = await signUpWithEmailPassword(name, email, password);
+
+         if (!success) {
+             // Error is already handled (logged and toasted) within AuthContext
+             console.log("SignUp page: Email/Password Sign-Up Failed (handled by context)");
          }
+         // Redirect is handled by the useEffect hook upon successful signup state update
+
+         // Always set submitting false after attempt
+         setIsSubmitting(false);
     };
 
-    if (loading || isSubmitting) {
+    if (loading) { // Only show loader based on auth loading state
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-secondary/30 to-background">
                  <Card className="w-full max-w-md shadow-xl">
                     <CardHeader className="text-center">
                         <CardTitle className="text-2xl font-bold text-primary flex items-center justify-center gap-2">
                            <Loader2 className="h-6 w-6 animate-spin" />
-                           {isSubmitting ? 'Creating Account...' : 'Loading'}
+                           Loading
                         </CardTitle>
                         <CardDescription>
-                            {isSubmitting ? 'Please wait...' : 'Checking status...'}
+                            Checking status...
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="flex justify-center items-center py-10">
@@ -182,6 +184,3 @@ export default function SignUpPage() {
         </div>
     );
 }
-
-
-    

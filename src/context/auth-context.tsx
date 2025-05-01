@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import { createContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import { initialSampleUsers } from "@/lib/sample-data"; // For initial demo state
+import { initialSampleUsers, type User } from "@/lib/sample-data"; // Adjusted import
 
 // --- Traditional Auth Simulation ---
 // This simulates API calls to a backend.
@@ -12,26 +12,19 @@ import { initialSampleUsers } from "@/lib/sample-data"; // For initial demo stat
 // Define possible roles
 export type UserRole = 'student' | 'professor' | 'admin' | null;
 
-// Define simplified user structure for context
-interface SimpleUser {
-    id: string;
-    email: string | null;
-    name: string | null;
-    role: UserRole; // Role is determined by demo logic or fetched from API
-}
+// Define simplified user structure for context (matches API response)
+interface SimpleUser extends Omit<User, 'passwordHash'> {}
 
 interface AuthContextType {
-  user: SimpleUser | null; // Use SimpleUser type
+  user: SimpleUser | null;
   loading: boolean;
-  sampleUserId: string | null; // Sample User ID for demo when logged out
-  signInWithEmailPassword: (email: string, pass: string) => Promise<void>;
-  signUpWithEmailPassword: (name: string, email: string, pass: string) => Promise<void>;
+  // sampleUserId is removed as demo mode is no longer primary
+  signInWithEmailPassword: (email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
+  signUpWithEmailPassword: (name: string, email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
   signOut: () => Promise<void>;
-  role: UserRole;
-  setRole: (role: UserRole) => void; // Allow setting demo role when logged out
+  role: UserRole; // Effective role (user's role or null if logged out)
+  // setRole is removed as role is determined by logged-in user
 }
-
-const initialDemoRole: UserRole = 'student'; // Default to student for demo
 
 const getInitialSampleUserId = (role: UserRole): string | null => {
     const user = initialSampleUsers.find(u => u.role === role);
@@ -42,18 +35,16 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<SimpleUser | null>(null); // Use SimpleUser
+  const [user, setUser] = useState<SimpleUser | null>(null);
   const [loading, setLoading] = useState(true); // Start loading until session check is done
   const { toast } = useToast();
-  const [demoRole, setDemoRoleInternal] = useState<UserRole>(initialDemoRole);
-  const [sampleUserId, setSampleUserId] = useState<string | null>(getInitialSampleUserId(initialDemoRole));
+  // Removed demoRole and sampleUserId state as primary auth is now implemented
   const [sessionToken, setSessionToken] = useState<string | null>(null); // Simulate session/token
 
   // Wrap session check in useEffect to run only on the client
   useEffect(() => {
     const checkSession = async () => {
         setLoading(true); // Ensure loading state is true during check
-        // Access localStorage only inside useEffect
         const storedToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
         if (storedToken) {
             try {
@@ -64,30 +55,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     const userData: SimpleUser = await response.json();
                     setUser(userData);
                     setSessionToken(storedToken);
-                    setDemoRoleInternal(null);
-                    setSampleUserId(null);
                     console.log("AuthProvider: Session restored for user:", userData.email);
                 } else {
                     if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Clear invalid token
                     setUser(null);
                     setSessionToken(null);
-                    setDemoRoleInternal(initialDemoRole);
-                    setSampleUserId(getInitialSampleUserId(initialDemoRole));
                 }
             } catch (error) {
                 console.error("AuthProvider: Error checking session:", error);
                  if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Clear token on error
                 setUser(null);
                 setSessionToken(null);
-                setDemoRoleInternal(initialDemoRole);
-                setSampleUserId(getInitialSampleUserId(initialDemoRole));
             }
         } else {
-             // No token found, set initial demo state
+             // No token found
              setUser(null);
              setSessionToken(null);
-             setDemoRoleInternal(initialDemoRole);
-             setSampleUserId(getInitialSampleUserId(initialDemoRole));
         }
         setLoading(false); // Set loading to false after check completes
     };
@@ -102,12 +85,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let title = `${action} Failed`;
 
     if (error instanceof Error) {
-        errorMessage = error.message; // Use message from simulated API error
+        // Use message from simulated API error if available
+        errorMessage = error.message || errorMessage;
     } else if (typeof error === 'string') {
         errorMessage = error;
     }
 
-    console.error(`${action} Error:`, errorMessage, error); // Log the full error if available
+    // Log the full error for debugging, including specific codes if available
+    console.error(`${action} Error:`, error?.code, errorMessage, error);
 
     toast({
         title: title,
@@ -117,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
 
-  const signInWithEmailPassword = async (email: string, pass: string) => {
+  const signInWithEmailPassword = async (email: string, pass: string): Promise<boolean> => {
     setLoading(true);
     try {
         const response = await fetch('/api/auth/login', {
@@ -128,33 +113,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.message || 'Login failed');
+            // Throw the specific error message from the API
+            throw new Error(errorData.message || `Login failed with status ${response.status}`);
         }
 
         const { token, user: userData } = await response.json();
 
         setUser(userData);
         setSessionToken(token);
-        if (typeof window !== 'undefined') localStorage.setItem('authToken', token); // Access localStorage safely here (client-side)
-        setDemoRoleInternal(null);
-        setSampleUserId(null);
+        if (typeof window !== 'undefined') localStorage.setItem('authToken', token);
         toast({ title: "Successfully signed in." });
+        return true; // Indicate success
 
     } catch (error: any) {
-        // The error message is already specific ("Invalid email or password")
-        // handleAuthError logs it and shows a toast
-        handleAuthError(error, "Sign-In");
+        handleAuthError(error, "Sign-In"); // Handles logging and toasting
         setUser(null);
         setSessionToken(null);
-        if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
-        // Re-throw the error so the component knows the login failed
-        throw error;
+        if (typeof window !== 'undefined') localStorage.removeItem('authToken');
+        // Return false instead of re-throwing, error is already handled
+        return false; // Indicate failure
     } finally {
         setLoading(false);
     }
   };
 
- const signUpWithEmailPassword = async (name: string, email: string, pass: string) => {
+ const signUpWithEmailPassword = async (name: string, email: string, pass: string): Promise<boolean> => {
     setLoading(true);
     try {
         const response = await fetch('/api/auth/signup', {
@@ -165,25 +148,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.message || 'Sign-up failed');
+             // Throw the specific error message from the API
+            throw new Error(errorData.message || `Sign-up failed with status ${response.status}`);
         }
 
         const { token, user: newUser } = await response.json();
 
         setUser(newUser);
         setSessionToken(token);
-        if (typeof window !== 'undefined') localStorage.setItem('authToken', token); // Access localStorage safely here (client-side)
-        setDemoRoleInternal(null);
-        setSampleUserId(null);
+        if (typeof window !== 'undefined') localStorage.setItem('authToken', token);
         toast({ title: "Account created successfully!" });
+         return true; // Indicate success
 
     } catch (error: any) {
-        handleAuthError(error, "Sign-Up");
+        handleAuthError(error, "Sign-Up"); // Handles logging and toasting
         setUser(null);
         setSessionToken(null);
-        if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
-        // Re-throw the error so the component knows the signup failed
-        throw error;
+        if (typeof window !== 'undefined') localStorage.removeItem('authToken');
+        // Return false instead of re-throwing
+        return false; // Indicate failure
     } finally {
         setLoading(false);
     }
@@ -198,9 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(null);
         setSessionToken(null);
-        if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
-        setDemoRoleInternal(initialDemoRole);
-        setSampleUserId(getInitialSampleUserId(initialDemoRole));
+        if (typeof window !== 'undefined') localStorage.removeItem('authToken');
         toast({ title: "Successfully signed out." });
     } catch (error: any) {
       handleAuthError(error, "Sign-Out");
@@ -209,43 +190,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const setRole = useCallback((newRole: UserRole) => {
-    if (!user) {
-        const newSampleUserId = getInitialSampleUserId(newRole);
-        console.log("Setting DEMO role:", newRole, "setting sampleUserId:", newSampleUserId);
-        setDemoRoleInternal(newRole);
-        setSampleUserId(newSampleUserId);
-    } else {
-        console.warn("Cannot set demo role while user is logged in.");
-    }
-  }, [user]);
-
+  // Role is now directly derived from the authenticated user
   const currentRole = useMemo(() => {
-    if (user) {
-        return user.role;
-    }
-    return demoRole;
-  }, [user, demoRole]);
+    return user?.role ?? null;
+  }, [user]);
 
   const value = useMemo(() => ({
     user,
     loading,
-    sampleUserId,
+    // sampleUserId is removed
     signInWithEmailPassword,
     signUpWithEmailPassword,
     signOut,
     role: currentRole,
-    setRole,
+    // setRole is removed
   }), [
       user,
       loading,
-      sampleUserId,
       currentRole,
-      setRole,
-      // No need to list stable functions here unless their implementation changes based on external variables
-      // signInWithEmailPassword,
-      // signUpWithEmailPassword,
-      // signOut
+      // signInWithEmailPassword, signUpWithEmailPassword, signOut are stable
     ]);
 
 
