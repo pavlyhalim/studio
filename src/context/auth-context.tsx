@@ -4,7 +4,7 @@
 import type { ReactNode } from 'react';
 import { createContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import { initialSampleUsers, type User } from "@/lib/sample-data"; // Adjusted import
+import { mockUsersDb, type User } from "@/lib/sample-data"; // Use mock DB
 
 // --- Traditional Auth Simulation ---
 // This simulates API calls to a backend.
@@ -18,18 +18,12 @@ interface SimpleUser extends Omit<User, 'passwordHash'> {}
 interface AuthContextType {
   user: SimpleUser | null;
   loading: boolean;
-  // sampleUserId is removed as demo mode is no longer primary
   signInWithEmailPassword: (email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
   signUpWithEmailPassword: (name: string, email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
   signOut: () => Promise<void>;
   role: UserRole; // Effective role (user's role or null if logged out)
-  // setRole is removed as role is determined by logged-in user
+  userId: string | null; // Added userId for convenience
 }
-
-const getInitialSampleUserId = (role: UserRole): string | null => {
-    const user = initialSampleUsers.find(u => u.role === role);
-    return user?.id ?? initialSampleUsers[0]?.id ?? null; // Fallback to first user if role match fails
-};
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -38,14 +32,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SimpleUser | null>(null);
   const [loading, setLoading] = useState(true); // Start loading until session check is done
   const { toast } = useToast();
-  // Removed demoRole and sampleUserId state as primary auth is now implemented
   const [sessionToken, setSessionToken] = useState<string | null>(null); // Simulate session/token
 
   // Wrap session check in useEffect to run only on the client
   useEffect(() => {
     const checkSession = async () => {
         setLoading(true); // Ensure loading state is true during check
-        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+        let storedToken: string | null = null;
+        try {
+            // Ensure localStorage access only happens on the client
+            if (typeof window !== 'undefined') {
+                storedToken = localStorage.getItem('authToken');
+            }
+        } catch (error) {
+            console.warn("AuthProvider: Error accessing localStorage (maybe disabled or in SSR).", error);
+        }
+
+
         if (storedToken) {
             try {
                 const response = await fetch('/api/auth/me', {
@@ -57,18 +60,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setSessionToken(storedToken);
                     console.log("AuthProvider: Session restored for user:", userData.email);
                 } else {
+                     console.warn("AuthProvider: Invalid or expired token found. Clearing session.");
                     if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Clear invalid token
                     setUser(null);
                     setSessionToken(null);
                 }
             } catch (error) {
-                console.error("AuthProvider: Error checking session:", error);
-                 if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Clear token on error
+                console.error("AuthProvider: Error during session check API call:", error);
+                if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Clear token on error
                 setUser(null);
                 setSessionToken(null);
             }
         } else {
              // No token found
+             // console.log("AuthProvider: No session token found.");
              setUser(null);
              setSessionToken(null);
         }
@@ -92,7 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Log the full error for debugging, including specific codes if available
-    console.error(`${action} Error:`, error?.code, errorMessage, error);
+    // Check if error.code exists before logging it
+    console.error(`${action} Error:`, errorMessage, error);
 
     toast({
         title: title,
@@ -121,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(userData);
         setSessionToken(token);
-        if (typeof window !== 'undefined') localStorage.setItem('authToken', token);
+         if (typeof window !== 'undefined') localStorage.setItem('authToken', token);
         toast({ title: "Successfully signed in." });
         return true; // Indicate success
 
@@ -195,19 +201,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return user?.role ?? null;
   }, [user]);
 
+   const currentUserId = useMemo(() => {
+     return user?.id ?? null;
+   }, [user]);
+
+
   const value = useMemo(() => ({
     user,
     loading,
-    // sampleUserId is removed
     signInWithEmailPassword,
     signUpWithEmailPassword,
     signOut,
     role: currentRole,
-    // setRole is removed
+    userId: currentUserId, // Add userId to context value
   }), [
       user,
       loading,
       currentRole,
+      currentUserId, // Add dependency
       // signInWithEmailPassword, signUpWithEmailPassword, signOut are stable
     ]);
 
