@@ -7,21 +7,26 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 // import { getFunctions } from "firebase/functions"; // Uncomment if using Cloud Functions
 // import { getStorage } from "firebase/storage"; // Uncomment if using Cloud Storage
 
-// --- IMPORTANT: REPLACE PLACEHOLDERS WITH YOUR ACTUAL FIREBASE CONFIG ---
-// Get your configuration from the Firebase Console:
-// Project settings > General > Your apps > Web app > Firebase SDK snippet > Config
+// --- IMPORTANT: Configuration Error Handling ---
+// The error "auth/configuration-not-found" usually means:
+// 1. Firebase Authentication is NOT ENABLED for this project in the Firebase Console.
+//    -> Go to Firebase Console > Build > Authentication > Get Started, and enable it.
+// 2. The `firebaseConfig` values below (especially `apiKey`, `authDomain`, `projectId`)
+//    do NOT match the actual Firebase project you intend to use.
+//    -> Double-check these values against your project settings in the Firebase Console.
 // -----------------------------------------------------------------------
 const firebaseConfig = {
-  // V V V --- REPLACE THESE VALUES --- V V V
-  apiKey: "YOUR_API_KEY", // <--- REPLACE THIS (Required for Auth, Installations, etc.)
-  authDomain: "YOUR_AUTH_DOMAIN.firebaseapp.com", // <--- REPLACE THIS
-  projectId: "YOUR_PROJECT_ID", // <--- REPLACE THIS
-  storageBucket: "YOUR_STORAGE_BUCKET.appspot.com", // <--- REPLACE THIS
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // <--- REPLACE THIS
-  appId: "YOUR_APP_ID", // <--- REPLACE THIS
-  measurementId: "G-YOUR_MEASUREMENT_ID" // Optional: Replace if you use Analytics
-  // ^ ^ ^ --- REPLACE THESE VALUES --- ^ ^ ^
-};
+    // --- REPLACE PLACEHOLDERS WITH YOUR ACTUAL FIREBASE CONFIG ---
+    // Get your configuration from the Firebase Console:
+    // Project settings > General > Your apps > Web app > Firebase SDK snippet > Config
+    apiKey: "AIzaSyC-WbOzwgUBvMHMRtARDhs6bg0EhHACsYQ", // <-- CHECK THIS VALUE
+    authDomain: "alant-d8eb8.firebaseapp.com", // <-- CHECK THIS VALUE
+    projectId: "alant-d8eb8", // <-- CHECK THIS VALUE
+    storageBucket: "alant-d8eb8.firebasestorage.app",
+    messagingSenderId: "249545022065",
+    appId: "1:249545022065:web:54f8888a1f22085ee419d0",
+    measurementId: "G-T1BNZ7E4Y0"
+  };
 
 
 // Initialize Firebase App (check if already initialized)
@@ -47,26 +52,32 @@ let googleProvider: GoogleAuthProvider;
 let analytics: ReturnType<typeof getAnalytics> | undefined;
 
 try {
+    // Ensure `app` is initialized before calling getAuth
+    if (!app) {
+        throw new Error("Firebase app failed to initialize before Auth setup.");
+    }
     auth = getAuth(app);
     googleProvider = new GoogleAuthProvider();
     console.log("Firebase Auth initialized.");
 } catch(error) {
     console.error("Error initializing Firebase Auth:", error);
     // Handle Auth initialization error - maybe disable login features
+    // If you see "auth/configuration-not-found", check the Firebase Console
+    // to ensure Authentication is enabled for this project.
 }
 
 
 // Initialize Analytics only if supported by the browser environment
 if (typeof window !== 'undefined') { // Check if running in a browser
     isSupported().then((supported) => {
-      if (supported) {
+      if (supported && app) { // Also check if app is initialized
           try {
              analytics = getAnalytics(app);
              console.log("Firebase Analytics initialized.");
           } catch (error) {
                console.error("Error initializing Firebase Analytics:", error);
           }
-      } else {
+      } else if (!supported) {
         console.log("Firebase Analytics is not supported in this environment.");
       }
     }).catch(error => {
@@ -80,6 +91,7 @@ if (typeof window !== 'undefined') { // Check if running in a browser
 // Uncomment and initialize other services as needed, wrapping in try...catch
 // let db;
 // try {
+//     if (!app) throw new Error("Firebase app not initialized for Firestore");
 //     db = getFirestore(app);
 //     console.log("Firestore initialized.");
 // } catch (error) {
@@ -88,6 +100,7 @@ if (typeof window !== 'undefined') { // Check if running in a browser
 
 // let functions;
 // try {
+//     if (!app) throw new Error("Firebase app not initialized for Functions");
 //     functions = getFunctions(app);
 //     console.log("Cloud Functions initialized.");
 // } catch (error) {
@@ -96,6 +109,7 @@ if (typeof window !== 'undefined') { // Check if running in a browser
 
 // let storage;
 // try {
+//     if (!app) throw new Error("Firebase app not initialized for Storage");
 //     storage = getStorage(app);
 //     console.log("Cloud Storage initialized.");
 // } catch (error) {
@@ -106,10 +120,18 @@ if (typeof window !== 'undefined') { // Check if running in a browser
 export { app, auth, googleProvider, analytics /*, db, functions, storage */ };
 
 // Add a reminder in the console during development
-if (process.env.NODE_ENV === 'development' && firebaseConfig.apiKey === "YOUR_API_KEY") {
+if (process.env.NODE_ENV === 'development' && firebaseConfig.apiKey.startsWith("AIza") && firebaseConfig.apiKey.includes("YOUR_API_KEY")) { // More specific check for placeholder
   console.warn(
-      "🚨 Firebase config is using placeholder values! 🚨\n" +
+      "🚨 Firebase config might be using placeholder values! 🚨\n" +
       "Please update src/lib/firebase.ts with your actual Firebase project configuration.\n" +
       "Get your config from Firebase Console: Project settings > General > Your apps > Web app > Config."
   );
 }
+if (process.env.NODE_ENV === 'development' && !firebaseConfig.apiKey) {
+    console.error(
+        "🚨 Firebase API Key is missing! 🚨\n" +
+        "Authentication and other Firebase services will likely fail.\n" +
+        "Please update src/lib/firebase.ts with your actual Firebase project configuration."
+    )
+}
+
