@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Settings, BookOpen, PlusCircle, Trash2 } from "lucide-react"; // Changed BarChart to BookOpen, added icons
+import { Users, Settings, BookOpen, PlusCircle, Trash2, Save, ToggleLeft, ToggleRight } from "lucide-react"; // Added Save, Toggle icons
 import {
     sampleUsers as initialSampleUsers, // Use initial data only for initialization
     sampleCourses as initialSampleCourses, // Use initial data only for initialization
@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch'; // Import Switch
 import { useToast } from '@/hooks/use-toast';
 import {
   AlertDialog,
@@ -33,6 +34,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+
+// Define types for settings state
+interface PlatformSettings {
+    aiModel: string;
+    enableStudyPlanner: boolean;
+    enableLiveTranscriptions: boolean;
+    theme: 'light' | 'dark';
+}
 
 export function AdminDashboard() {
   const { toast } = useToast();
@@ -54,6 +63,16 @@ export function AdminDashboard() {
   const [newCourseDescription, setNewCourseDescription] = useState('');
   const [newCourseProfessorId, setNewCourseProfessorId] = useState('');
 
+   // State for Platform Settings
+    const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({
+        aiModel: 'googleai/gemini-2.0-flash', // Default value matching ai-instance
+        enableStudyPlanner: true,
+        enableLiveTranscriptions: false,
+        theme: 'light', // Default theme
+    });
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+
   // Derive professors from the current users state
   const professors = users.filter(u => u.role === 'professor');
   const totalUsers = users.length;
@@ -74,13 +93,17 @@ export function AdminDashboard() {
     // To ensure reactivity, it's better to update state immutably:
     setUsers(currentUsers => {
         // Check if the user was actually added (might be duplicate)
+        // Note: addSampleUser already checks for email duplicates and returns existing if found
         const existingUser = currentUsers.find(u => u.id === newUser.id);
         if (!existingUser) {
             toast({ title: "User Added", description: `User ${newUser.name} created successfully.` });
             return [...currentUsers, newUser];
+        } else if (newUser.id !== existingUser.id) {
+             // This case handles if addSampleUser returned a *different* user with the same email
+            return currentUsers; // No change, warning already logged by addSampleUser
         } else {
-             // Already handled by addSampleUser's console warning
-            return currentUsers; // No change to state if duplicate
+            // If the returned user IS the one already in state (edge case of duplicate submission)
+            return currentUsers;
         }
     });
 
@@ -171,6 +194,28 @@ export function AdminDashboard() {
         // In a real app, would also delete assignments, grades, files etc.
         console.log(`Simulating removal of related data (enrollments) for course ${courseId}`);
         toast({ title: "Course Deleted", description: `Course "${courseToDelete.title}" removed (simulated).` });
+    };
+
+    // Handle Platform Settings Change
+    const handleSettingChange = (key: keyof PlatformSettings, value: any) => {
+        setPlatformSettings(prev => ({ ...prev, [key]: value }));
+    };
+
+    // Simulate saving settings
+    const handleSaveSettings = async () => {
+        setIsSavingSettings(true);
+        console.log("Simulating saving settings:", platformSettings);
+        // In a real app, send settings to the backend API here
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
+        setIsSavingSettings(false);
+        toast({ title: "Settings Saved", description: "Platform settings have been updated (simulated)." });
+
+        // Apply theme change (basic example, real app might need global state/context)
+        if (platformSettings.theme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
     };
 
 
@@ -398,10 +443,87 @@ export function AdminDashboard() {
           <CardTitle>Platform Settings</CardTitle>
            <CardDescription>Configure global platform settings.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">AI model configuration, feature flags, theme customization, etc.</p>
-          {/* TODO: Implement platform settings form */}
-           <Button variant="outline" className="mt-4" disabled>Configure Settings</Button>
+        <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 {/* AI Model Configuration */}
+                 <div className="space-y-2">
+                    <Label htmlFor="ai-model-select">AI Model</Label>
+                    <Select
+                        value={platformSettings.aiModel}
+                        onValueChange={(value) => handleSettingChange('aiModel', value)}
+                        >
+                        <SelectTrigger id="ai-model-select">
+                            <SelectValue placeholder="Select AI model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {/* Add more models as needed/supported */}
+                            <SelectItem value="googleai/gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
+                            <SelectItem value="googleai/gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
+                            <SelectItem value="googleai/gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Select the primary AI model for chatbot and features.</p>
+                 </div>
+
+                 {/* Theme Selection */}
+                 <div className="space-y-2">
+                    <Label htmlFor="theme-select">Platform Theme</Label>
+                    <Select
+                        value={platformSettings.theme}
+                        onValueChange={(value) => handleSettingChange('theme', value as 'light' | 'dark')}
+                        >
+                        <SelectTrigger id="theme-select">
+                            <SelectValue placeholder="Select theme" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="light">Light</SelectItem>
+                            <SelectItem value="dark">Dark</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">Choose the default appearance for the platform.</p>
+                 </div>
+            </div>
+
+             {/* Feature Flags */}
+            <div className="space-y-4">
+                 <h4 className="font-medium">Feature Flags</h4>
+                 <div className="flex items-center justify-between p-3 border rounded-md">
+                    <div>
+                        <Label htmlFor="enable-study-planner" className="font-normal">Enable AI Study Planner</Label>
+                         <p className="text-xs text-muted-foreground">Activates the AI-powered study planning feature for students.</p>
+                    </div>
+                    <Switch
+                        id="enable-study-planner"
+                        checked={platformSettings.enableStudyPlanner}
+                        onCheckedChange={(checked) => handleSettingChange('enableStudyPlanner', checked)}
+                    />
+                 </div>
+                 <div className="flex items-center justify-between p-3 border rounded-md">
+                    <div>
+                        <Label htmlFor="enable-live-transcriptions" className="font-normal">Enable Live Lecture Transcriptions</Label>
+                         <p className="text-xs text-muted-foreground">Provides real-time transcriptions during live video sessions (requires integration).</p>
+                    </div>
+                    <Switch
+                        id="enable-live-transcriptions"
+                        checked={platformSettings.enableLiveTranscriptions}
+                        onCheckedChange={(checked) => handleSettingChange('enableLiveTranscriptions', checked)}
+                        // Disabled for demo as it's not implemented
+                        disabled
+                    />
+                 </div>
+            </div>
+
+             <Button onClick={handleSaveSettings} disabled={isSavingSettings} className="w-full md:w-auto">
+                 {isSavingSettings ? (
+                    <>
+                        <Save className="mr-2 h-4 w-4 animate-spin"/> Saving...
+                    </>
+                 ) : (
+                    <>
+                        <Save className="mr-2 h-4 w-4"/> Save Settings
+                    </>
+                 )}
+             </Button>
         </CardContent>
       </Card>
 
