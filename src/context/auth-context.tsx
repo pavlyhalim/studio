@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkSession = async () => {
         setLoading(true); // Ensure loading state is true during check
         // Access localStorage only inside useEffect
-        const storedToken = localStorage.getItem('authToken');
+        const storedToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
         if (storedToken) {
             try {
                 const response = await fetch('/api/auth/me', {
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     setSampleUserId(null);
                     console.log("AuthProvider: Session restored for user:", userData.email);
                 } else {
-                    localStorage.removeItem('authToken'); // Clear invalid token
+                    if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Clear invalid token
                     setUser(null);
                     setSessionToken(null);
                     setDemoRoleInternal(initialDemoRole);
@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 }
             } catch (error) {
                 console.error("AuthProvider: Error checking session:", error);
-                localStorage.removeItem('authToken'); // Clear token on error
+                 if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Clear token on error
                 setUser(null);
                 setSessionToken(null);
                 setDemoRoleInternal(initialDemoRole);
@@ -135,16 +135,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(userData);
         setSessionToken(token);
-        localStorage.setItem('authToken', token); // Access localStorage safely here (client-side)
+        if (typeof window !== 'undefined') localStorage.setItem('authToken', token); // Access localStorage safely here (client-side)
         setDemoRoleInternal(null);
         setSampleUserId(null);
         toast({ title: "Successfully signed in." });
 
     } catch (error: any) {
+        // The error message is already specific ("Invalid email or password")
+        // handleAuthError logs it and shows a toast
         handleAuthError(error, "Sign-In");
         setUser(null);
         setSessionToken(null);
-        localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
+        if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
         // Re-throw the error so the component knows the login failed
         throw error;
     } finally {
@@ -170,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(newUser);
         setSessionToken(token);
-        localStorage.setItem('authToken', token); // Access localStorage safely here (client-side)
+        if (typeof window !== 'undefined') localStorage.setItem('authToken', token); // Access localStorage safely here (client-side)
         setDemoRoleInternal(null);
         setSampleUserId(null);
         toast({ title: "Account created successfully!" });
@@ -179,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         handleAuthError(error, "Sign-Up");
         setUser(null);
         setSessionToken(null);
-        localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
+        if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
         // Re-throw the error so the component knows the signup failed
         throw error;
     } finally {
@@ -196,7 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(null);
         setSessionToken(null);
-        localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
+        if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Access localStorage safely here (client-side)
         setDemoRoleInternal(initialDemoRole);
         setSampleUserId(getInitialSampleUserId(initialDemoRole));
         toast({ title: "Successfully signed out." });
@@ -240,9 +242,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sampleUserId,
       currentRole,
       setRole,
-      signInWithEmailPassword, // Functions are now stable due to useCallback or being outside
-      signUpWithEmailPassword,
-      signOut
+      // No need to list stable functions here unless their implementation changes based on external variables
+      // signInWithEmailPassword,
+      // signUpWithEmailPassword,
+      // signOut
     ]);
 
 
