@@ -1,4 +1,3 @@
-
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getAnalytics, isSupported } from "firebase/analytics";
@@ -12,16 +11,14 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 // 1. Firebase Authentication is NOT ENABLED for this project in the Firebase Console.
 //    -> Go to Firebase Console > Build > Authentication > Get Started, and enable it.
 // 2. The `firebaseConfig` values below (especially `apiKey`, `authDomain`, `projectId`)
-//    do NOT match the actual Firebase project you intend to use.
-//    -> Double-check these values against your project settings in the Firebase Console.
+//    do NOT match the actual Firebase project you intend to use, either via environment variables or direct assignment.
+//    -> Double-check these values against your project settings in the Firebase Console and your environment variables.
 // -----------------------------------------------------------------------
 const firebaseConfig = {
-    // --- REPLACE PLACEHOLDERS WITH YOUR ACTUAL FIREBASE CONFIG ---
-    // Get your configuration from the Firebase Console:
-    // Project settings > General > Your apps > Web app > Firebase SDK snippet > Config
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "YOUR_API_KEY", // <-- CHECK THIS VALUE or set NEXT_PUBLIC_FIREBASE_API_KEY
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN.firebaseapp.com", // <-- CHECK THIS VALUE or set NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID", // <-- CHECK THIS VALUE or set NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    // Read from environment variables, provide placeholders as fallback
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "YOUR_API_KEY",
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN.firebaseapp.com",
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET.appspot.com",
     messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
     appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "YOUR_APP_ID",
@@ -29,23 +26,25 @@ const firebaseConfig = {
   };
 
 // --- Configuration Validation ---
-if (
+// Check if the effective config values are still placeholders
+const isConfigPlaceholder =
     !firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY" ||
     !firebaseConfig.authDomain || firebaseConfig.authDomain.includes("YOUR_AUTH_DOMAIN") ||
-    !firebaseConfig.projectId || firebaseConfig.projectId === "YOUR_PROJECT_ID"
-) {
+    !firebaseConfig.projectId || firebaseConfig.projectId === "YOUR_PROJECT_ID";
+
+if (isConfigPlaceholder) {
     console.error(
         "🚨 CRITICAL FIREBASE CONFIG ERROR 🚨\n" +
         "Firebase configuration values in src/lib/firebase.ts appear to be placeholders or missing.\n" +
         "Authentication and other Firebase services WILL FAIL.\n" +
         "1. Ensure Firebase Authentication is ENABLED in your Firebase Console.\n" +
-        "2. Update src/lib/firebase.ts with your ACTUAL Firebase project configuration OR set the corresponding NEXT_PUBLIC_FIREBASE_* environment variables.\n" +
+        "2. Update src/lib/firebase.ts with your ACTUAL Firebase project configuration OR set the corresponding NEXT_PUBLIC_FIREBASE_* environment variables (check your .env.local file).\n" +
         "Get your config from Firebase Console: Project settings > General > Your apps > Web app > Config."
     );
     // Optionally, throw an error in development to halt execution
-    if (process.env.NODE_ENV === 'development') {
-        // throw new Error("Firebase configuration is missing or invalid. Please check src/lib/firebase.ts and your Firebase Console settings.");
-    }
+    // if (process.env.NODE_ENV === 'development') {
+    //     throw new Error("Firebase configuration is missing or invalid. Please check src/lib/firebase.ts and your Firebase Console settings.");
+    // }
 }
 
 
@@ -53,12 +52,12 @@ if (
 let app: FirebaseApp | null = null; // Initialize as null
 if (!getApps().length) {
     try {
-        // Only attempt initialization if config seems valid
-        if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY") {
+        // Only attempt initialization if config seems valid (not a placeholder)
+        if (!isConfigPlaceholder) {
              app = initializeApp(firebaseConfig);
              console.log("Firebase app initialized successfully.");
         } else {
-             console.error("Firebase initialization skipped due to invalid configuration.");
+             console.error("Firebase initialization skipped due to invalid or placeholder configuration.");
         }
     } catch (error) {
         console.error("Error initializing Firebase app:", error);
