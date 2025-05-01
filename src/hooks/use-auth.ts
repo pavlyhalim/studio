@@ -20,5 +20,6 @@ export const useAuth = () => {
     signOut: context.signOut,
     role: context.role,
     setRole: context.setRole,
+    isFirebaseReady: context.isFirebaseReady, // Expose Firebase readiness flag
   };
 };
