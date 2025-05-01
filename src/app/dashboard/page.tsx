@@ -8,7 +8,7 @@ import { useAuth, type UserRole } from '@/hooks/use-auth';
 import { StudentDashboard } from '@/components/dashboard/student/student-dashboard';
 import { ProfessorDashboard } from '@/components/dashboard/professor/professor-dashboard';
 import { AdminDashboard } from '@/components/dashboard/admin/admin-dashboard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'; // Added CardDescription
 import { Loader2 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -59,11 +59,11 @@ export default function DashboardPage() {
              <div className="flex flex-col min-h-screen">
                 <Navbar />
                 <main className="flex-grow container mx-auto px-4 py-8 flex items-center justify-center">
-                    <Card className="w-full max-w-md text-center">
+                    <Card className="w-full max-w-md text-center shadow-lg">
                          <CardHeader>
-                            <CardTitle>Loading Dashboard...</CardTitle>
+                            <CardTitle className="text-2xl">Loading Dashboard...</CardTitle>
                          </CardHeader>
-                         <CardContent>
+                         <CardContent className="py-10">
                              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
                          </CardContent>
                     </Card>
@@ -85,12 +85,13 @@ export default function DashboardPage() {
         return <AdminDashboard />;
       default:
         return (
-          <Card>
+          <Card className="shadow-lg border-dashed border-primary/30">
             <CardHeader>
               <CardTitle>Select Your Role</CardTitle>
+               <CardDescription>Please choose a role from the dropdown above to view the corresponding dashboard.</CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Please select a role using the dropdown above to view the corresponding dashboard.</p>
+              <p>Use the role selector above to explore different dashboard views in this demo application.</p>
             </CardContent>
           </Card>
         );
@@ -98,40 +99,44 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-secondary/5"> {/* Subtle background */}
         <Navbar />
-        <main className="flex-grow container mx-auto px-4 py-8 space-y-6">
+        <main className="flex-grow container mx-auto px-4 py-8 space-y-8"> {/* Increased spacing */}
              {/* Temporary Role Selector for Demo */}
-             <Card className="bg-secondary/30 border-secondary">
+             <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-border shadow-sm overflow-hidden"> {/* Subtle gradient and styling */}
                 <CardHeader>
-                    <CardTitle>Demo Role Selector</CardTitle>
+                    <CardTitle className="text-xl text-primary">Demo Role Selector</CardTitle>
+                    <CardDescription>Switch between dashboard views for demonstration purposes.</CardDescription>
                 </CardHeader>
-                <CardContent className="flex items-center space-x-4">
-                     <Label htmlFor="role-select" className="text-lg font-medium text-primary">Select Role:</Label>
-                     <Select
-                        value={selectedRole ?? ''} // Ensure value matches the state
-                        onValueChange={handleRoleChange}
-                        // disabled={!!user} // Keep enabled for demo purposes
-                     >
-                        <SelectTrigger id="role-select" className="w-[180px]">
-                            <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="student">Student</SelectItem>
-                            <SelectItem value="professor">Professor</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                        </SelectContent>
-                     </Select>
-                     <p className="text-sm text-muted-foreground">(This selector allows viewing different dashboards in this demo.)</p>
+                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                     <div className="flex items-center space-x-2 flex-shrink-0">
+                        <Label htmlFor="role-select" className="text-base font-medium text-foreground">Select Role:</Label>
+                        <Select
+                            value={selectedRole ?? ''} // Ensure value matches the state
+                            onValueChange={handleRoleChange}
+                            // disabled={!!user} // Keep enabled for demo purposes
+                        >
+                            <SelectTrigger id="role-select" className="w-[180px] bg-background shadow-inner">
+                                <SelectValue placeholder="Select role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="student">Student</SelectItem>
+                                <SelectItem value="professor">Professor</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                            </SelectContent>
+                        </Select>
+                     </div>
+                     <p className="text-sm text-muted-foreground italic">(This selector allows viewing different dashboards in this demo.)</p>
                 </CardContent>
              </Card>
 
-            {/* Render the appropriate dashboard based on the selected role */}
-            {renderDashboardContent()}
+            {/* Render the appropriate dashboard based on the selected role with transition */}
+            <div className="transition-opacity duration-300 ease-in-out">
+                {renderDashboardContent()}
+            </div>
 
         </main>
         <Footer />
     </div>
   );
 }
-

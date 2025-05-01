@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -19,7 +20,7 @@ body {
     --popover-foreground: 205 100% 14%; /* Deep Blue */
     --primary: 205 100% 14%; /* Deep Blue (#003049) */
     --primary-foreground: 0 0% 100%; /* White */
-    --secondary: 197 71% 73%; /* Light Blue (#87CEEB) */
+    --secondary: 197 71% 90%; /* Lighter Light Blue */
     --secondary-foreground: 205 100% 14%; /* Deep Blue */
     --muted: 0 0% 96.1%; /* Light Gray */
     --muted-foreground: 0 0% 45.1%; /* Medium Gray */
@@ -55,26 +56,28 @@ body {
     --success-border: 142 76% 80%; /* Lighter Green for border */
     --success-background: 142 76% 96%; /* Very Light Green for background */
 
+    /* Define a subtle background color */
+    --subtle-background: 0 0% 98%; /* Very light gray */
   }
   .dark {
     /* Define dark theme colors based on the requested palette */
     --background: 205 100% 8%; /* Very Dark Blue */
     --foreground: 0 0% 98%; /* White */
-    --card: 205 100% 14%; /* Deep Blue */
+    --card: 205 100% 12%; /* Slightly lighter Deep Blue */
     --card-foreground: 0 0% 98%; /* White */
-    --popover: 205 100% 14%; /* Deep Blue */
+    --popover: 205 100% 10%; /* Darker Deep Blue */
     --popover-foreground: 0 0% 98%; /* White */
     --primary: 197 71% 73%; /* Light Blue */
     --primary-foreground: 205 100% 14%; /* Deep Blue */
-    --secondary: 180 100% 25%; /* Teal */
-    --secondary-foreground: 0 0% 100%; /* White */
-    --muted: 205 100% 20%; /* Darker Blue */
+    --secondary: 180 100% 15%; /* Dark Teal */
+    --secondary-foreground: 0 0% 90%; /* Lighter Gray */
+    --muted: 205 100% 18%; /* Darker Blue */
     --muted-foreground: 0 0% 63.9%; /* Light Gray */
     --accent: 180 100% 35%; /* Brighter Teal */
     --accent-foreground: 0 0% 100%; /* White */
-    --destructive: 0 62.8% 30.6%; /* Dark Red */
+    --destructive: 0 62.8% 50.6%; /* Slightly brighter Dark Red */
     --destructive-foreground: 0 0% 98%; /* Light Gray */
-    --border: 205 100% 20%; /* Darker Blue */
+    --border: 205 100% 25%; /* Medium Dark Blue */
     --input: 205 100% 20%; /* Darker Blue */
     --ring: 180 100% 35%; /* Brighter Teal */
     --chart-1: 220 70% 50%;
@@ -96,6 +99,9 @@ body {
     --success-foreground: 0 0% 10%; /* Dark text */
     --success-border: 142 60% 30%; /* Darker Green border */
     --success-background: 142 90% 15%; /* Dark Green background */
+
+    /* Define a subtle background color for dark mode */
+     --subtle-background: 205 100% 10%; /* Very dark blue, slightly lighter than main bg */
   }
 }
 
@@ -104,6 +110,12 @@ body {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-sans; /* Ensure font-sans is applied */
+    /* Use the subtle background color */
+    @apply bg-[hsl(var(--subtle-background))] text-foreground font-sans antialiased; /* Ensure font-sans is applied, added antialiased */
+  }
+
+   /* Add smooth scroll behavior */
+  html {
+    scroll-behavior: smooth;
   }
 }

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Send, Bot, User as UserIcon, AlertTriangle } from 'lucide-react'; // Added AlertTriangle
+import { Send, Bot, User as UserIcon, AlertTriangle, Sparkles } from 'lucide-react'; // Added Sparkles
 import { studentAIQueryWithToolSelector } from '@/ai/flows/ai-query-tool-selector'; // Import the Genkit flow
 import { useAuth } from '@/hooks/use-auth'; // Import useAuth
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,7 +48,12 @@ export function Chatbot() {
   useEffect(() => {
     if (scrollAreaRef.current) {
       // Use scrollHeight to get the total height of the content
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+      // Wrap in setTimeout to ensure DOM updates are flushed
+      setTimeout(() => {
+         if(scrollAreaRef.current) {
+            scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
+         }
+      }, 0);
     }
   }, [messages]);
 
@@ -98,83 +103,81 @@ export function Chatbot() {
   };
 
   return (
-    <Card className="w-full max-w-2xl mx-auto shadow-lg">
-      <CardHeader className="border-b">
-        <CardTitle className="flex items-center gap-2 text-primary">
-          <Bot className="h-6 w-6" />
+    <Card className="w-full max-w-3xl mx-auto shadow-xl border border-border/50 overflow-hidden"> {/* Slightly wider, border */}
+      <CardHeader className="border-b bg-gradient-to-r from-primary/5 to-accent/5"> {/* Subtle gradient header */}
+        <CardTitle className="flex items-center gap-2 text-primary font-semibold"> {/* Adjusted font weight */}
+          <Sparkles className="h-6 w-6 text-accent" /> {/* Changed icon */}
           AI Q&A Assistant
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         {/* Assign ref to the ScrollArea's viewport div */}
-         <ScrollArea className="h-[400px] p-4 space-y-4" viewportRef={scrollAreaRef}>
+         <ScrollArea className="h-[450px] p-4 space-y-6 bg-background" viewportRef={scrollAreaRef}> {/* Increased height and spacing */}
           {messages.map((message) => (
             <div
               key={message.id}
-              className={`flex items-start gap-3 ${
-                message.sender === 'user' ? 'justify-end' : ''
+              className={`flex items-end gap-3 ${ // Align items to end for bubble effect
+                message.sender === 'user' ? 'justify-end' : 'justify-start'
               }`}
             >
               {message.sender === 'ai' && (
-                <Avatar className="h-8 w-8 border border-primary/20">
-                  {/* You can use a specific AI avatar image if you have one */}
-                  {/* <AvatarImage src="/path/to/ai-avatar.png" alt="AI" /> */}
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    <Bot size={18} />
+                <Avatar className="h-8 w-8 border border-primary/20 shadow-sm mb-1"> {/* Added shadow and margin */}
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs"> {/* Smaller text */}
+                    <Bot size={16} /> {/* Slightly smaller icon */}
                   </AvatarFallback>
                 </Avatar>
               )}
               <div
-                className={`rounded-lg p-3 max-w-[75%] shadow-sm ${ // Added shadow-sm for better visibility
+                className={`rounded-xl p-3 max-w-[80%] shadow-md ${ // Rounded-xl, more shadow
                   message.sender === 'user'
-                    ? 'bg-accent text-accent-foreground'
-                    : 'bg-secondary text-secondary-foreground'
+                    ? 'bg-accent text-accent-foreground rounded-br-none' // Tail for user bubble
+                    : 'bg-secondary text-secondary-foreground rounded-bl-none' // Tail for AI bubble
                 }`}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-                 <p className="text-xs text-right mt-1 opacity-70">
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{message.text}</p> {/* Better line spacing */}
+                 <p className="text-xs text-right mt-1.5 opacity-60"> {/* More margin, less opacity */}
                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                  </p>
               </div>
               {message.sender === 'user' && !authLoading && user && ( // Ensure user exists
-                <Avatar className="h-8 w-8 border border-accent/50">
+                <Avatar className="h-8 w-8 border border-accent/50 shadow-sm mb-1"> {/* Added shadow and margin */}
                   <AvatarImage src={user?.photoURL ?? undefined} alt={user?.displayName ?? 'User'} />
-                  <AvatarFallback className="bg-accent text-accent-foreground">
+                  <AvatarFallback className="bg-accent text-accent-foreground text-xs"> {/* Smaller text */}
                       {getInitials(user?.displayName)}
                   </AvatarFallback>
                 </Avatar>
               )}
-              {/* Render generic user icon if message sender is user but user data is missing (e.g., logged out but message exists somehow) */}
+              {/* Render generic user icon if message sender is user but user data is missing */}
                {message.sender === 'user' && (authLoading || !user) && (
-                 <Avatar className="h-8 w-8 border border-accent/50">
-                    <AvatarFallback className="bg-muted text-muted-foreground">
-                        <UserIcon size={18} />
+                 <Avatar className="h-8 w-8 border border-muted shadow-sm mb-1"> {/* Added shadow and margin */}
+                    <AvatarFallback className="bg-muted text-muted-foreground text-xs"> {/* Smaller text */}
+                        <UserIcon size={16} /> {/* Slightly smaller icon */}
                     </AvatarFallback>
                  </Avatar>
                )}
             </div>
           ))}
            {isLoading && (
-             <div className="flex items-start gap-3">
-               <Avatar className="h-8 w-8 border border-primary/20">
-                 <AvatarFallback className="bg-primary text-primary-foreground">
-                   <Bot size={18} />
+             <div className="flex items-end gap-3 justify-start"> {/* Align start */}
+               <Avatar className="h-8 w-8 border border-primary/20 shadow-sm mb-1">
+                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                   <Bot size={16} />
                  </AvatarFallback>
                </Avatar>
-               <div className="rounded-lg p-3 bg-secondary text-secondary-foreground shadow-sm">
-                  <Skeleton className="h-4 w-16" /> {/* Adjusted width */}
-                  <Skeleton className="h-4 w-12 mt-1" /> {/* Added second line */}
+               <div className="rounded-xl p-3 bg-secondary text-secondary-foreground shadow-md rounded-bl-none space-y-1.5"> {/* Loading bubble */}
+                  <Skeleton className="h-3 w-16 bg-secondary-foreground/30" />
+                  <Skeleton className="h-3 w-12 bg-secondary-foreground/30" />
                 </div>
              </div>
            )}
         </ScrollArea>
       </CardContent>
-      <CardFooter className="border-t p-4 flex flex-col items-start gap-2">
+      <CardFooter className="border-t p-4 flex flex-col items-start gap-3 bg-secondary/10"> {/* Subtle background */}
          {!isLoggedIn && !authLoading && ( // Show login reminder if not logged in and auth check is complete
-            <Alert variant="default" className="w-full bg-secondary/50 border-secondary">
-              <AlertTriangle className="h-4 w-4 text-secondary-foreground" />
-              <AlertTitle className="text-secondary-foreground">Login Required</AlertTitle>
-              <AlertDescription className="text-secondary-foreground/80">
+            <Alert variant="default" className="w-full bg-yellow-100 dark:bg-yellow-900/30 border-yellow-300 dark:border-yellow-700 shadow-sm"> {/* Yellowish alert */}
+              <AlertTriangle className="h-4 w-4 text-yellow-700 dark:text-yellow-400" />
+              <AlertTitle className="text-yellow-800 dark:text-yellow-300">Login Required</AlertTitle>
+              <AlertDescription className="text-yellow-700 dark:text-yellow-400/80">
                 Please log in to send messages and interact with the AI assistant.
               </AlertDescription>
             </Alert>
@@ -182,11 +185,11 @@ export function Chatbot() {
         <form onSubmit={handleSend} className="flex w-full items-center space-x-2">
           <Input
             id="chat-input"
-            placeholder={isLoggedIn ? "Ask a question..." : "Please log in to chat"}
+            placeholder={isLoggedIn ? "Ask the AI assistant..." : "Please log in to chat"}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             disabled={isLoading || authLoading || !isLoggedIn} // Disable input when loading, checking auth, or not logged in
-            className="flex-1"
+            className="flex-1 bg-background shadow-inner focus-visible:ring-accent" // Enhanced input style
             autoComplete="off"
           />
           <Button
@@ -194,6 +197,7 @@ export function Chatbot() {
             size="icon"
             disabled={isLoading || !input.trim() || authLoading || !isLoggedIn} // Also disable button if not logged in
             aria-label="Send message" // Added aria-label
+            className="bg-accent hover:bg-accent/90 shadow-md transform active:scale-95 transition-transform" // Enhanced button style
             >
             <Send className="h-4 w-4" />
             <span className="sr-only">Send</span>
