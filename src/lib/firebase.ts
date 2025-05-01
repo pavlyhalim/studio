@@ -7,29 +7,36 @@ import { getAnalytics, isSupported } from "firebase/analytics"; // Import isSupp
 // import { getFunctions } from "firebase/functions"; // Uncomment if using Cloud Functions
 // import { getStorage } from "firebase/storage"; // Uncomment if using Cloud Storage
 
-// IMPORTANT: Replace this with your actual Firebase project configuration
-// Import the functions you need from the SDKs you need
-
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// --- IMPORTANT: REPLACE PLACEHOLDERS WITH YOUR ACTUAL FIREBASE CONFIG ---
+// You need a valid Firebase configuration for the application to work.
+// Get your configuration from the Firebase Console:
+// Project settings > General > Your apps > Web app > Firebase SDK snippet > Config
+// -----------------------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY", // Replace with your actual API key
-  authDomain: "YOUR_AUTH_DOMAIN", // Replace with your Auth domain
-  projectId: "YOUR_PROJECT_ID", // Replace with your Project ID
-  storageBucket: "YOUR_STORAGE_BUCKET", // Replace with your Storage Bucket
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // Replace with your Messaging Sender ID
-  appId: "YOUR_APP_ID", // Replace with your App ID
-  measurementId: "YOUR_MEASUREMENT_ID" // Optional: Replace with your Measurement ID
+  // V V V --- REPLACE THESE VALUES --- V V V
+  apiKey: "YOUR_API_KEY", // <--- REPLACE THIS
+  authDomain: "YOUR_AUTH_DOMAIN", // <--- REPLACE THIS
+  projectId: "YOUR_PROJECT_ID", // <--- REPLACE THIS
+  storageBucket: "YOUR_STORAGE_BUCKET", // <--- REPLACE THIS
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID", // <--- REPLACE THIS
+  appId: "YOUR_APP_ID", // <--- REPLACE THIS
+  measurementId: "YOUR_MEASUREMENT_ID" // Optional: Replace if you use Analytics
+  // ^ ^ ^ --- REPLACE THESE VALUES --- ^ ^ ^
 };
 
 
 // Initialize Firebase App (check if already initialized)
 let app: FirebaseApp; // Declare app using let
 if (!getApps().length) {
-    app = initializeApp(firebaseConfig); // Initialize if no apps exist
+    try {
+        app = initializeApp(firebaseConfig); // Initialize if no apps exist
+    } catch (error) {
+        console.error("Error initializing Firebase app:", error);
+        // Handle initialization error appropriately, e.g., show an error message to the user
+        // For now, we'll throw to make the issue visible during development
+        throw new Error("Firebase initialization failed. Please check your firebaseConfig in src/lib/firebase.ts.");
+    }
+
 } else {
     app = getApp(); // Get existing app if already initialized
 }
@@ -47,6 +54,8 @@ if (typeof window !== 'undefined') { // Check if running in a browser
       } else {
         console.log("Firebase Analytics is not supported in this environment.");
       }
+    }).catch(error => {
+        console.error("Error checking Analytics support:", error);
     });
 }
 
@@ -59,6 +68,5 @@ export { app, auth, googleProvider, analytics /*, db, functions, storage */ };
 
 // Add a reminder in the console during development
 if (process.env.NODE_ENV === 'development' && firebaseConfig.apiKey === "YOUR_API_KEY") {
-  console.warn("Firebase config is using placeholder values. Please update src/lib/firebase.ts with your actual Firebase project configuration.");
+  console.warn("🚨 Firebase config is using placeholder values! 🚨\nPlease update src/lib/firebase.ts with your actual Firebase project configuration for the app to function correctly.");
 }
-
