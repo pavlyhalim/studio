@@ -8,14 +8,15 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import {
-    sampleCourses,
-    sampleEnrollments,
-    getCoursesByStudent,
+    sampleCourses as initialSampleCourses, // Use initial data for reference
+    sampleEnrollments as initialSampleEnrollments, // Use initial data for initialization
+    getCoursesByStudent, // Helper still useful
     getUpcomingAssignmentsForStudent,
     getRecentGradesForStudent,
     getAnnouncementsForStudent,
     sampleUsers, // Import sampleUsers
     sampleAssignments, // Import assignments for grades lookup
+    updateSampleEnrollments, // Import the update function
     type Course,
     type Enrollment,
     type Assignment,
@@ -31,28 +32,28 @@ export function StudentDashboard() {
   const { userId } = useAuth(); // Get the sample userId
   const { toast } = useToast();
 
-  // State for data
+  // State for data - Initialize with current global sample data
+  const [enrollments, setEnrollments] = useState<Enrollment[]>(initialSampleEnrollments); // Local state for enrollments
   const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
   const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>(sampleEnrollments); // Local state for enrollments
   const [upcomingAssignments, setUpcomingAssignments] = useState<Assignment[]>([]);
   const [recentGrades, setRecentGrades] = useState<Grade[]>([]);
   const [recentAnnouncements, setRecentAnnouncements] = useState<Announcement[]>([]);
 
   useEffect(() => {
     if (userId) {
-        // Filter enrollments for the current user
+        // Filter enrollments for the current user from local state
         const userEnrollments = enrollments.filter(e => e.studentId === userId);
         const enrolledCourseIds = userEnrollments.map(e => e.courseId);
 
-        // Get enrolled and available courses
-        const studentCourses = sampleCourses.filter(c => enrolledCourseIds.includes(c.id));
-        const notEnrolledCourses = sampleCourses.filter(c => !enrolledCourseIds.includes(c.id));
+        // Get enrolled and available courses based on local enrollments state and initial course list
+        const studentEnrolledCourses = initialSampleCourses.filter(c => enrolledCourseIds.includes(c.id));
+        const studentAvailableCourses = initialSampleCourses.filter(c => !enrolledCourseIds.includes(c.id));
 
-        setEnrolledCourses(studentCourses);
-        setAvailableCourses(notEnrolledCourses);
+        setEnrolledCourses(studentEnrolledCourses);
+        setAvailableCourses(studentAvailableCourses);
 
-        // Fetch other student-specific data
+        // Fetch other student-specific data using helpers (these read from global samples)
         setUpcomingAssignments(getUpcomingAssignmentsForStudent(userId, 14)); // Look 2 weeks ahead
         setRecentGrades(getRecentGradesForStudent(userId, 5));
         setRecentAnnouncements(getAnnouncementsForStudent(userId, 5));
@@ -60,12 +61,13 @@ export function StudentDashboard() {
     } else {
         // If no userId (not logged in or role mismatch in demo), show defaults
         setEnrolledCourses([]);
-        setAvailableCourses(sampleCourses);
+        setAvailableCourses(initialSampleCourses); // Show all as available
+        // Do not reset enrollments here, let it persist unless explicitly changed
         setUpcomingAssignments([]);
         setRecentGrades([]);
         setRecentAnnouncements([]);
     }
-  }, [userId, enrollments]); // Rerun when userId or enrollments change
+  }, [userId, enrollments]); // Rerun when userId or local enrollments change
 
   const handleEnroll = (courseId: string) => {
     if (!userId) {
@@ -85,9 +87,11 @@ export function StudentDashboard() {
         courseId: courseId,
         enrolledDate: new Date(),
     };
-    setEnrollments(prev => [...prev, newEnrollment]);
+    const updatedEnrollments = [...enrollments, newEnrollment];
+    setEnrollments(updatedEnrollments); // Update local state -> triggers useEffect
+    updateSampleEnrollments(updatedEnrollments); // Update the "global" sample data for demo consistency elsewhere
 
-    const enrolledCourse = sampleCourses.find(c => c.id === courseId);
+    const enrolledCourse = initialSampleCourses.find(c => c.id === courseId);
     toast({ title: "Enrollment Successful", description: `You have enrolled in "${enrolledCourse?.title ?? 'the course'}".` });
      // Note: In a real app, this would be an API call to update the database.
   };
@@ -95,7 +99,8 @@ export function StudentDashboard() {
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-primary mb-4">Student Dashboard</h1>
-      <p className="text-lg text-muted-foreground">Welcome back, {userId ? sampleUsers.find(u=>u.id===userId)?.name : 'Student'}!</p>
+      {/* Ensure sampleUsers is available before trying to find the user */}
+      <p className="text-lg text-muted-foreground">Welcome back, {userId && sampleUsers ? sampleUsers.find(u=>u.id===userId)?.name : 'Student'}!</p>
 
        {/* Dashboard Overview Grid */}
        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -153,6 +158,7 @@ export function StudentDashboard() {
                                             onClick={() => handleEnroll(course.id)}
                                             disabled={!userId} // Disable if not logged in
                                             variant={"default"} // Always show enroll button clearly
+                                            aria-label={`Enroll in ${course.title}`}
                                          >
                                              <PlusCircle className="mr-2 h-4 w-4" /> Enroll
                                         </Button>
@@ -182,6 +188,7 @@ export function StudentDashboard() {
                             <ScrollArea className="h-40">
                                 <ul className="space-y-2">
                                     {upcomingAssignments.map(assign => {
+                                        // Find course from the student's *enrolled* courses state
                                         const course = enrolledCourses.find(c => c.id === assign.courseId);
                                         return (
                                             <li key={assign.id} className="text-sm p-2 border-l-4 border-primary rounded bg-background shadow-sm">
@@ -211,19 +218,25 @@ export function StudentDashboard() {
                         <ScrollArea className="h-40">
                             <ul className="space-y-2">
                                 {recentGrades.map(grade => {
+                                     // Find assignment from global sample data
                                      const assignment = sampleAssignments.find(a => a.id === grade.assignmentId);
+                                     // Find course from the student's *enrolled* courses state
                                      const course = enrolledCourses.find(c => c.id === grade.courseId);
                                      const percentage = grade.maxScore > 0 ? ((grade.score / grade.maxScore) * 100).toFixed(0) : 'N/A';
+                                     const scoreValid = !isNaN(parseInt(percentage));
+                                     // Determine badge variant based on percentage
+                                     const variant : "success" | "secondary" | "destructive" | "default" | "outline" | null | undefined = scoreValid ? (parseInt(percentage) >= 80 ? "success" : parseInt(percentage) >= 60 ? "secondary" : "destructive") : "outline";
+
                                     return (
                                          <li key={grade.id} className="text-sm p-2 border rounded bg-background shadow-sm">
                                             <div className="flex justify-between items-start">
                                                  <div>
-                                                    <p className="font-medium">{assignment?.title ?? 'Unknown Assignment'}</p>
+                                                    <p className="font-medium" title={assignment?.title ?? 'Unknown Assignment'}>{assignment?.title ?? 'Unknown Assignment'}</p>
                                                     <p className="text-xs text-muted-foreground">Course: {course?.title ?? 'N/A'}</p>
                                                     <p className="text-xs text-muted-foreground">Graded: {format(grade.gradedDate, 'PP')}</p>
                                                 </div>
-                                                 <Badge variant={parseInt(percentage) >= 80 ? "success" : parseInt(percentage) >= 60 ? "secondary" : "destructive"}>
-                                                    {grade.score}/{grade.maxScore} ({percentage}%)
+                                                 <Badge variant={variant}>
+                                                    {grade.score}/{grade.maxScore} {scoreValid ? `(${percentage}%)` : ''}
                                                 </Badge>
                                             </div>
                                             {grade.feedback && <p className="text-xs text-muted-foreground mt-1 italic">Feedback: {grade.feedback}</p>}
@@ -249,7 +262,9 @@ export function StudentDashboard() {
                             <ScrollArea className="h-48">
                                 <ul className="space-y-3">
                                     {recentAnnouncements.map(ann => {
+                                        // Find course from the student's *enrolled* courses state
                                         const course = enrolledCourses.find(c => c.id === ann.courseId);
+                                        // Find professor from global sample data
                                         const professor = sampleUsers.find(u => u.id === ann.professorId);
                                         return (
                                              <li key={ann.id} className="text-sm p-3 border rounded bg-secondary/10 shadow-sm">
@@ -306,16 +321,4 @@ export function StudentDashboard() {
   );
 }
 
-// Add Success variant to Badge if needed, or use inline style/class
-const SuccessBadge = ({ children }: { children: React.ReactNode }) => (
-    <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 hover:bg-green-100/80">
-        {children}
-    </Badge>
-);
-
-// Augment Badge variant types if adding directly to ui/badge.tsx
-declare module "@/components/ui/badge" {
-  interface BadgeProps {
-    variant?: "default" | "secondary" | "destructive" | "outline" | "success";
-  }
-}
+// Removed SuccessBadge and Badge augmentation as explicit className or variant="success" is used.

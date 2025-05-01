@@ -60,8 +60,8 @@ export interface UploadedFile {
     sizeKB: number;
 }
 
-// Sample Users
-export const sampleUsers: User[] = [
+// Sample Users - This array is used for initialization but not mutated by add functions
+export let sampleUsers: User[] = [ // Made 'let' to allow mutation by addSampleUser
     { id: 'student1', name: 'Alice Student', email: 'alice@example.com', role: 'student' },
     { id: 'student2', name: 'Bob Learner', email: 'bob@example.com', role: 'student' },
     { id: 'student3', name: 'Charlie Curious', email: 'charlie@example.com', role: 'student' },
@@ -70,8 +70,8 @@ export const sampleUsers: User[] = [
     { id: 'admin1', name: 'Admin User', email: 'admin@example.com', role: 'admin' },
 ];
 
-// Sample Courses
-export const sampleCourses: Course[] = [
+// Sample Courses - This array is used for initialization but not mutated by add functions
+export let sampleCourses: Course[] = [ // Made 'let' to allow mutation by addSampleCourse
   {
     id: 'course101',
     title: 'Introduction to Quantum Physics',
@@ -99,7 +99,7 @@ export const sampleCourses: Course[] = [
 ];
 
 // Sample Enrollments
-export const sampleEnrollments: Enrollment[] = [
+export let sampleEnrollments: Enrollment[] = [ // Use let if modified by components
     { studentId: 'student1', courseId: 'course101', enrolledDate: new Date('2024-01-15') },
     { studentId: 'student1', courseId: 'course303', enrolledDate: new Date('2024-01-15') },
     { studentId: 'student2', courseId: 'course202', enrolledDate: new Date('2024-01-20') },
@@ -124,14 +124,14 @@ export const sampleGrades: Grade[] = [
 ];
 
 // Sample Announcements
-export const sampleAnnouncements: Announcement[] = [
+export let sampleAnnouncements: Announcement[] = [ // Use let if modified by components
     { id: 'ann1', courseId: 'course101', title: 'Welcome to Quantum Physics!', content: 'Welcome everyone! Please review the syllabus and the first reading assignment.', postedDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), professorId: 'prof1' },
     { id: 'ann2', courseId: 'course101', title: 'Office Hours Update', content: 'My office hours for this week will be moved to Wednesday 2-3 PM.', postedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), professorId: 'prof1' },
     { id: 'ann3', courseId: 'course202', title: 'Guest Lecture Next Week', content: 'We will have a guest lecture from Dr. Jill Tarter on the SETI project next Tuesday.', postedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), professorId: 'prof2' },
 ];
 
 // Sample Uploaded Files (Simulated)
-export const sampleUploadedFiles: UploadedFile[] = [
+export let sampleUploadedFiles: UploadedFile[] = [ // Use let if modified by components
     { id: 'file1', courseId: 'course101', professorId: 'prof1', fileName: 'Syllabus_QuantumPhysics.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 150 },
     { id: 'file2', courseId: 'course101', professorId: 'prof1', fileName: 'Lecture1_Intro.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 512 },
     { id: 'file3', courseId: 'course202', professorId: 'prof2', fileName: 'Astrobiology_ReadingList.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 80 },
@@ -144,6 +144,7 @@ export const sampleUploadedFiles: UploadedFile[] = [
 
 // Get courses taught by a specific professor
 export const getCoursesByProfessor = (professorId: string): Course[] => {
+    // Use the static sampleCourses array for filtering
     return sampleCourses.filter(course => course.professorId === professorId);
 };
 
@@ -152,6 +153,7 @@ export const getStudentsInCourse = (courseId: string): User[] => {
     const studentIds = sampleEnrollments
         .filter(enrollment => enrollment.courseId === courseId)
         .map(enrollment => enrollment.studentId);
+    // Use the static sampleUsers array for filtering
     return sampleUsers.filter(user => user.role === 'student' && studentIds.includes(user.id));
 };
 
@@ -160,6 +162,7 @@ export const getCoursesByStudent = (studentId: string): Course[] => {
     const courseIds = sampleEnrollments
         .filter(enrollment => enrollment.studentId === studentId)
         .map(enrollment => enrollment.courseId);
+    // Use the static sampleCourses array for filtering
     return sampleCourses.filter(course => courseIds.includes(course.id));
 };
 
@@ -197,12 +200,13 @@ export const getAnnouncementsForStudent = (studentId: string, limit: number = 5)
 };
 
 // Get announcements for courses taught by a professor
-export const getAnnouncementsForProfessor = (professorId: string, limit: number = 5): Announcement[] => {
+export const getAnnouncementsForProfessor = (professorId: string): Announcement[] => {
     const taughtCourseIds = getCoursesByProfessor(professorId).map(c => c.id);
     return sampleAnnouncements
-        .filter(ann => taughtCourseIds.includes(ann.courseId))
-        .sort((a, b) => b.postedDate.getTime() - a.postedDate.getTime())
-        .slice(0, limit);
+        .filter(ann => taughtCourseIds.includes(ann.courseId));
+        // Removed limit to show all announcements for the professor on their dashboard
+        // .sort((a, b) => b.postedDate.getTime() - a.postedDate.getTime())
+        // .slice(0, limit);
 };
 
 // Get files uploaded for a specific course
@@ -215,44 +219,89 @@ export const getFilesByProfessor = (professorId: string): UploadedFile[] => {
     return sampleUploadedFiles.filter(file => file.professorId === professorId);
 };
 
-// Simulate adding a new announcement (local state update only for demo)
+// Simulate adding a new announcement (returns object, mutates global state for demo)
 export const addSampleAnnouncement = (announcement: Omit<Announcement, 'id' | 'postedDate'>): Announcement => {
     const newAnnouncement: Announcement = {
         ...announcement,
-        id: `ann${sampleAnnouncements.length + 1}`,
+        id: `ann${Date.now()}`, // Use timestamp for uniqueness in demo
         postedDate: new Date(),
     };
-    sampleAnnouncements.unshift(newAnnouncement); // Add to beginning for recent display
+    sampleAnnouncements.unshift(newAnnouncement); // Modify global state for demo
     return newAnnouncement;
 }
 
-// Simulate adding a new file upload (local state update only for demo)
+// Simulate adding a new file upload (returns object, mutates global state for demo)
 export const addSampleFile = (fileData: Omit<UploadedFile, 'id' | 'uploadDate'>): UploadedFile => {
     const newFile: UploadedFile = {
         ...fileData,
-        id: `file${sampleUploadedFiles.length + 1}`,
+        id: `file${Date.now()}`, // Use timestamp for uniqueness in demo
         uploadDate: new Date(),
     };
-    sampleUploadedFiles.unshift(newFile); // Add to beginning
+    sampleUploadedFiles.unshift(newFile); // Modify global state for demo
     return newFile;
 }
 
-// Simulate adding a user (local state update only for demo)
+// Simulate creating a user object (returns object, mutates global state for demo)
 export const addSampleUser = (userData: Omit<User, 'id'>): User => {
     const newUser: User = {
         ...userData,
-        id: `${userData.role}${sampleUsers.filter(u => u.role === userData.role).length + 1}`,
+        // Create a somewhat unique ID for demo purposes. Real app would use DB ID.
+        id: `${userData.role}-${userData.name.split(' ')[0].toLowerCase()}-${Date.now().toString().slice(-4)}`,
     };
-    sampleUsers.push(newUser);
+    // Check if user with this email already exists before adding
+    if (!sampleUsers.some(u => u.email === newUser.email)) {
+        sampleUsers.push(newUser); // Modify global state for demo
+    } else {
+        console.warn(`User with email ${newUser.email} already exists. Not adding duplicate.`);
+        // Optionally return the existing user or handle differently
+        return sampleUsers.find(u => u.email === newUser.email)!;
+    }
     return newUser;
 };
 
-// Simulate adding a course (local state update only for demo)
+// Simulate creating a course object (returns object, mutates global state for demo)
 export const addSampleCourse = (courseData: Omit<Course, 'id'>): Course => {
     const newCourse: Course = {
         ...courseData,
-        id: `course${sampleCourses.length + 1}`,
+        id: `course${Date.now()}`, // Use timestamp for uniqueness in demo
     };
-    sampleCourses.push(newCourse);
+    // Check if course with this title already exists before adding
+    if (!sampleCourses.some(c => c.title.toLowerCase() === newCourse.title.toLowerCase())) {
+         sampleCourses.push(newCourse); // Modify global state for demo
+    } else {
+        console.warn(`Course with title "${newCourse.title}" already exists. Not adding duplicate.`);
+         // Optionally return the existing course or handle differently
+        return sampleCourses.find(c => c.title.toLowerCase() === newCourse.title.toLowerCase())!;
+    }
     return newCourse;
 }
+
+// Function to update enrollments (example for StudentDashboard)
+export const updateSampleEnrollments = (newEnrollments: Enrollment[]) => {
+    sampleEnrollments = newEnrollments;
+};
+
+// Function to update announcements (example for ProfessorDashboard)
+export const updateSampleAnnouncements = (newAnnouncements: Announcement[]) => {
+    sampleAnnouncements = newAnnouncements;
+};
+
+// Function to update files (example for ProfessorDashboard)
+export const updateSampleFiles = (newFiles: UploadedFile[]) => {
+    sampleUploadedFiles = newFiles;
+};
+
+// Function to update users (example for AdminDashboard)
+export const updateSampleUsers = (newUsers: User[]) => {
+    sampleUsers = newUsers;
+};
+
+// Function to update courses (example for AdminDashboard)
+export const updateSampleCourses = (newCourses: Course[]) => {
+    sampleCourses = newCourses;
+}
+
+
+// NOTE: For a real application, these 'update' functions would be replaced by API calls
+// to a backend service that interacts with a database. The sample data arrays would
+// likely only be used for initial seeding or testing, not direct modification.
