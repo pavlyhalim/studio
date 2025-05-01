@@ -12,6 +12,9 @@ export interface User {
     name: string;
     email: string;
     role: 'student' | 'professor' | 'admin';
+    // IMPORTANT: In a real app, this MUST be a securely hashed password (e.g., using bcrypt).
+    // For demo purposes, we simulate a 'hash'.
+    passwordHash: string;
 }
 
 export interface Enrollment {
@@ -59,50 +62,72 @@ export interface UploadedFile {
     sizeKB: number;
 }
 
-// Initial Sample Data - These arrays are only used for initialization
+// --- Mock Database (Simulated Persistence for Server Instance Lifetime) ---
+// In a real app, this would be replaced by actual database interactions.
+// This map simulates a user table.
+export const mockUsersDb = new Map<string, User>();
+// --------------------------------------------------------------------
+
+// Initial Sample Data - Populates the mock DB on server start.
 // They should NOT be mutated directly by components or helper functions after initial load.
-export const initialSampleUsers: User[] = [
-    { id: 'student1', name: 'Alice Student', email: 'alice@example.com', role: 'student' },
-    { id: 'student2', name: 'Bob Learner', email: 'bob@example.com', role: 'student' },
-    { id: 'student3', name: 'Charlie Curious', email: 'charlie@example.com', role: 'student' },
-    { id: 'prof1', name: 'Dr. Charles Xavier', email: 'prof.x@example.com', role: 'professor' },
-    { id: 'prof2', name: 'Dr. Eleanor Arroway', email: 'dr.e.arroway@example.com', role: 'professor' },
-    { id: 'admin1', name: 'Admin User', email: 'admin@example.com', role: 'admin' },
+export const initialSampleUsersData: Omit<User, 'id' | 'passwordHash'> & { passwordPlain: string }[] = [
+    { name: 'Alice Student', email: 'alice@example.com', role: 'student', passwordPlain: 'password123' },
+    { name: 'Bob Learner', email: 'bob@example.com', role: 'student', passwordPlain: 'password123' },
+    { name: 'Charlie Curious', email: 'charlie@example.com', role: 'student', passwordPlain: 'password123' },
+    { name: 'Dr. Charles Xavier', email: 'prof.x@example.com', role: 'professor', passwordPlain: 'password456' },
+    { name: 'Dr. Eleanor Arroway', email: 'dr.e.arroway@example.com', role: 'professor', passwordPlain: 'password456' },
+    { name: 'Admin User', email: 'admin@example.com', role: 'admin', passwordPlain: 'password789' },
 ];
+
+// Populate the mock DB
+initialSampleUsersData.forEach((userData, index) => {
+    const userId = `${userData.role}-${index + 1}`;
+    const user: User = {
+        id: userId,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        // IMPORTANT: Simulate hashing. NEVER store plain passwords in real apps.
+        passwordHash: `simulated_hash_for_${userData.passwordPlain}`,
+    };
+    mockUsersDb.set(user.email.toLowerCase(), user);
+});
+
+export const initialSampleUsers: User[] = Array.from(mockUsersDb.values());
 
 export const initialSampleCourses: Course[] = [
   {
     id: 'course101',
     title: 'Introduction to Quantum Physics',
     description: 'Explore the fundamentals of quantum mechanics and its applications.',
-    professorId: 'prof1',
+    professorId: 'professor-1', // Matches Dr. Xavier's simulated ID if needed
   },
   {
     id: 'course202',
     title: 'Astrobiology and Search for Life',
     description: 'Investigating the possibility of life beyond Earth.',
-    professorId: 'prof2',
+    professorId: 'professor-2', // Matches Dr. Arroway's simulated ID if needed
   },
   {
     id: 'course303',
     title: 'Advanced Mutant Ethics',
     description: 'Ethical considerations in a world with mutants.',
-    professorId: 'prof1',
+    professorId: 'professor-1',
   },
    {
     id: 'course404',
     title: 'Signal Processing in SETI',
     description: 'Techniques for detecting extraterrestrial intelligence signals.',
-    professorId: 'prof2',
+    professorId: 'professor-2',
   },
 ];
 
 export const initialSampleEnrollments: Enrollment[] = [
-    { studentId: 'student1', courseId: 'course101', enrolledDate: new Date('2024-01-15') },
-    { studentId: 'student1', courseId: 'course303', enrolledDate: new Date('2024-01-15') },
-    { studentId: 'student2', courseId: 'course202', enrolledDate: new Date('2024-01-20') },
-    { studentId: 'student2', courseId: 'course404', enrolledDate: new Date('2024-01-20') },
-    { studentId: 'student3', courseId: 'course101', enrolledDate: new Date('2024-02-01') },
+    { studentId: 'student-1', courseId: 'course101', enrolledDate: new Date('2024-01-15') },
+    { studentId: 'student-1', courseId: 'course303', enrolledDate: new Date('2024-01-15') },
+    { studentId: 'student-2', courseId: 'course202', enrolledDate: new Date('2024-01-20') },
+    { studentId: 'student-2', courseId: 'course404', enrolledDate: new Date('2024-01-20') },
+    { studentId: 'student-3', courseId: 'course101', enrolledDate: new Date('2024-02-01') },
 ];
 
 export const initialSampleAssignments: Assignment[] = [
@@ -114,32 +139,31 @@ export const initialSampleAssignments: Assignment[] = [
 ];
 
 export const initialSampleGrades: Grade[] = [
-    { id: 'grade1', studentId: 'student1', assignmentId: 'assign1', courseId: 'course101', score: 90, maxScore: 100, gradedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), feedback: 'Excellent work on the duality calculations.' },
-    { id: 'grade2', studentId: 'student3', assignmentId: 'assign1', courseId: 'course101', score: 82, maxScore: 100, gradedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), feedback: 'Good effort, review the uncertainty principle application.' },
-    { id: 'grade3', studentId: 'student2', assignmentId: 'assign3', courseId: 'course202', score: 95, maxScore: 100, gradedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), feedback: 'Well-researched paper with strong arguments.' },
-    { id: 'grade4', studentId: 'student1', assignmentId: 'assign4', courseId: 'course303', score: 75, maxScore: 100, gradedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), feedback: 'Arguments need more support, but structure is good.' },
+    { id: 'grade1', studentId: 'student-1', assignmentId: 'assign1', courseId: 'course101', score: 90, maxScore: 100, gradedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), feedback: 'Excellent work on the duality calculations.' },
+    { id: 'grade3', studentId: 'student-3', assignmentId: 'assign1', courseId: 'course101', score: 82, maxScore: 100, gradedDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), feedback: 'Good effort, review the uncertainty principle application.' },
+    { id: 'grade4', studentId: 'student-2', assignmentId: 'assign3', courseId: 'course202', score: 95, maxScore: 100, gradedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), feedback: 'Well-researched paper with strong arguments.' },
+    { id: 'grade5', studentId: 'student-1', assignmentId: 'assign4', courseId: 'course303', score: 75, maxScore: 100, gradedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), feedback: 'Arguments need more support, but structure is good.' },
 ];
 
 export const initialSampleAnnouncements: Announcement[] = [
-    { id: 'ann1', courseId: 'course101', title: 'Welcome to Quantum Physics!', content: 'Welcome everyone! Please review the syllabus and the first reading assignment.', postedDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), professorId: 'prof1' },
-    { id: 'ann2', courseId: 'course101', title: 'Office Hours Update', content: 'My office hours for this week will be moved to Wednesday 2-3 PM.', postedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), professorId: 'prof1' },
-    { id: 'ann3', courseId: 'course202', title: 'Guest Lecture Next Week', content: 'We will have a guest lecture from Dr. Jill Tarter on the SETI project next Tuesday.', postedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), professorId: 'prof2' },
+    { id: 'ann1', courseId: 'course101', title: 'Welcome to Quantum Physics!', content: 'Welcome everyone! Please review the syllabus and the first reading assignment.', postedDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), professorId: 'professor-1' },
+    { id: 'ann2', courseId: 'course101', title: 'Office Hours Update', content: 'My office hours for this week will be moved to Wednesday 2-3 PM.', postedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), professorId: 'professor-1' },
+    { id: 'ann3', courseId: 'course202', title: 'Guest Lecture Next Week', content: 'We will have a guest lecture from Dr. Jill Tarter on the SETI project next Tuesday.', postedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), professorId: 'professor-2' },
 ];
 
 export const initialSampleUploadedFiles: UploadedFile[] = [
-    { id: 'file1', courseId: 'course101', professorId: 'prof1', fileName: 'Syllabus_QuantumPhysics.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 150 },
-    { id: 'file2', courseId: 'course101', professorId: 'prof1', fileName: 'Lecture1_Intro.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 512 },
-    { id: 'file3', courseId: 'course202', professorId: 'prof2', fileName: 'Astrobiology_ReadingList.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 80 },
-    { id: 'file4', courseId: 'course303', professorId: 'prof1', fileName: 'MutantEthics_CaseStudies.docx', fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', uploadDate: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 45 },
-    { id: 'file5', courseId: 'course101', professorId: 'prof1', fileName: 'Intro_To_Quantum_Video.mp4', fileType: 'video/mp4', uploadDate: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), url: 'https://www.youtube.com/embed/ primjer_videa', sizeKB: 25600 }, // Example video
+    { id: 'file1', courseId: 'course101', professorId: 'professor-1', fileName: 'Syllabus_QuantumPhysics.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 11 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 150 },
+    { id: 'file2', courseId: 'course101', professorId: 'professor-1', fileName: 'Lecture1_Intro.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 512 },
+    { id: 'file3', courseId: 'course202', professorId: 'professor-2', fileName: 'Astrobiology_ReadingList.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 80 },
+    { id: 'file4', courseId: 'course303', professorId: 'professor-1', fileName: 'MutantEthics_CaseStudies.docx', fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', uploadDate: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 45 },
+    { id: 'file5', courseId: 'course101', professorId: 'professor-1', fileName: 'Intro_To_Quantum_Video.mp4', fileType: 'video/mp4', uploadDate: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 25600 }, // Example video
 ];
 
 
-// --- Helper Functions ---
+// --- Helper Functions (Read-Only from Initial Data) ---
 
 // Get courses taught by a specific professor
 export const getCoursesByProfessor = (professorId: string): Course[] => {
-    // Use the initial sampleCourses array for filtering
     return initialSampleCourses.filter(course => course.professorId === professorId);
 };
 
@@ -148,7 +172,6 @@ export const getStudentsInCourse = (courseId: string): User[] => {
     const studentIds = initialSampleEnrollments
         .filter(enrollment => enrollment.courseId === courseId)
         .map(enrollment => enrollment.studentId);
-    // Use the initial sampleUsers array for filtering
     return initialSampleUsers.filter(user => user.role === 'student' && studentIds.includes(user.id));
 };
 
@@ -157,7 +180,6 @@ export const getCoursesByStudent = (studentId: string): Course[] => {
     const courseIds = initialSampleEnrollments
         .filter(enrollment => enrollment.studentId === studentId)
         .map(enrollment => enrollment.courseId);
-    // Use the initial sampleCourses array for filtering
     return initialSampleCourses.filter(course => courseIds.includes(course.id));
 };
 
@@ -237,17 +259,16 @@ export const createSampleFile = (fileData: Omit<UploadedFile, 'id' | 'uploadDate
     };
 }
 
-// Simulate creating a new user object
-export const createSampleUser = (userData: Omit<User, 'id'>): User | { error: string } => {
-    // Check if user with this email already exists in the initial data
-    if (initialSampleUsers.some(u => u.email === userData.email)) {
-        console.warn(`User with email ${userData.email} already exists in initial data. Cannot simulate creation.`);
-        return { error: `User with email ${userData.email} already exists.` };
-    }
+// Simulate creating a new user object (used internally by signup API route)
+export const createSampleUser = (userData: Omit<User, 'id' | 'passwordHash'> & { passwordPlain: string }): User => {
+    // Check should be done in the API route before calling this
     return {
-        ...userData,
-        // Create a somewhat unique ID for demo purposes. Real app would use DB ID.
         id: `${userData.role}-${userData.name.split(' ')[0].toLowerCase()}-${Date.now().toString().slice(-4)}`,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        // IMPORTANT: Simulate hashing. NEVER store plain passwords in real apps.
+        passwordHash: `simulated_hash_for_${userData.passwordPlain}`,
     };
 };
 
@@ -276,3 +297,5 @@ export const createSampleEnrollment = (studentId: string, courseId: string): Enr
 // NOTE: In a real application, these 'create' functions would be replaced by API calls
 // to a backend service that interacts with a database and returns the created record.
 // Components would then use the returned data to update their local state.
+// The mockUsersDb map provides a *basic* simulation of a persistent store for the lifetime
+// of the server instance, allowing signup/login to "work" during a single session.

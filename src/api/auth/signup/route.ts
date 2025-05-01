@@ -1,22 +1,8 @@
 
 import { NextResponse } from 'next/server';
-import { initialSampleUsers } from '@/lib/sample-data'; // Use initial data for simulation
+import { mockUsersDb, createSampleUser, type User } from '@/lib/sample-data'; // Use mock DB and create helper
 
-// --- Mock Users (Assume shared state or DB in real app) ---
-// This map should ideally be shared or use a DB connection
-const mockUsersDb = new Map<string, { id: string; name: string; email: string; passwordHash: string; role: 'student' | 'professor' | 'admin' | null }>();
-initialSampleUsers.forEach(u => {
-    mockUsersDb.set(u.email.toLowerCase(), {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        // Simulate storing the password the login route expects
-        passwordHash: `${u.id}_password`,
-        role: u.role,
-    });
-});
-// ------------------------------------------------------------
-
+// IMPORTANT: This simulates a basic signup flow. Real apps need robust security.
 
 export async function POST(request: Request) {
   try {
@@ -33,37 +19,32 @@ export async function POST(request: Request) {
     // --- Simulate Database Check ---
     const lowerCaseEmail = email.toLowerCase();
     if (mockUsersDb.has(lowerCaseEmail)) {
+      console.log(`Signup attempt failed: Email ${lowerCaseEmail} already registered.`);
       return NextResponse.json({ message: 'Email address is already registered' }, { status: 409 }); // 409 Conflict
     }
     // ---------------------------------
 
     // --- Simulate User Creation ---
-    const newUserId = `user-${Date.now().toString().slice(-6)}`; // Simple unique ID for demo
     // IMPORTANT: Real apps MUST hash passwords securely using bcrypt.
-    // Store the simulated plain password format expected by the login route
-    const simulatedPasswordToStore = `${newUserId}_password`;
-    const newUser = {
-        id: newUserId,
-        name: name,
-        email: lowerCaseEmail,
-        passwordHash: simulatedPasswordToStore, // Store the simulated password
-        role: 'student' as const, // Default role
-    };
-    mockUsersDb.set(lowerCaseEmail, newUser); // Add to mock DB
-    console.log("Mock DB Updated (Signup):", { id: newUser.id, email: newUser.email, name: newUser.name, role: newUser.role }); // Don't log password
+    // Use the helper to create a user object with a simulated hash
+    const newUserObject = createSampleUser({ name, email: lowerCaseEmail, passwordPlain: password, role: 'student' }); // Default role
+
+    // Add to mock DB
+    mockUsersDb.set(lowerCaseEmail, newUserObject);
+    console.log("Mock DB Updated (Signup):", { id: newUserObject.id, email: newUserObject.email, name: newUserObject.name, role: newUserObject.role }); // Don't log password/hash
     // -----------------------------
 
     // --- Simulate Session/Token Generation ---
     // IMPORTANT: Real apps need secure JWT or session management.
-    const token = `simulated-token-for-${newUser.id}-${Date.now()}`;
+    const token = `simulated-token-for-${newUserObject.id}-${Date.now()}`;
     // -----------------------------------------
 
     // Return token and basic user info (exclude password hash)
-    const userResponse = {
-        id: newUser.id,
-        email: newUser.email,
-        name: newUser.name,
-        role: newUser.role,
+    const userResponse: Omit<User, 'passwordHash'> = {
+        id: newUserObject.id,
+        email: newUserObject.email,
+        name: newUserObject.name,
+        role: newUserObject.role,
     };
 
     // Simulate a short delay

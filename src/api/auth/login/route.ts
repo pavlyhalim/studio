@@ -1,21 +1,8 @@
 
 import { NextResponse } from 'next/server';
-import { initialSampleUsers } from '@/lib/sample-data'; // Use initial data for simulation
+import { mockUsersDb, type User } from '@/lib/sample-data'; // Use mock DB
 
-// --- Mock Users (Replace with actual DB in real backend) ---
-const mockUsersDb = new Map<string, { id: string; name: string; email: string; passwordHash: string; role: 'student' | 'professor' | 'admin' | null }>();
-initialSampleUsers.forEach(u => {
-    mockUsersDb.set(u.email.toLowerCase(), {
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        // Simulate storing the password the login route expects
-        passwordHash: `${u.id}_password`,
-        role: u.role,
-    });
-});
-// ------------------------------------------------------------
-
+// IMPORTANT: This simulates a basic login flow. Real apps need robust security.
 
 export async function POST(request: Request) {
   try {
@@ -36,8 +23,8 @@ export async function POST(request: Request) {
 
     // --- Simulate Password Check ---
     // IMPORTANT: This is NOT secure. Real apps MUST use bcrypt.compareSync() or similar.
-    // Compare the provided password with the stored simulated password ('passwordHash' field)
-    const simulatedPasswordMatches = password === existingUser.passwordHash;
+    // Compare the provided password against the *simulated* hash stored in mockUsersDb.
+    const simulatedPasswordMatches = `simulated_hash_for_${password}` === existingUser.passwordHash;
 
     if (!simulatedPasswordMatches) {
         console.log(`Login attempt failed: Password mismatch for user ${existingUser.email}`);
@@ -51,7 +38,7 @@ export async function POST(request: Request) {
     // -----------------------------------------
 
     // Return token and basic user info (exclude password hash)
-    const userResponse = {
+    const userResponse: Omit<User, 'passwordHash'> = {
         id: existingUser.id,
         email: existingUser.email,
         name: existingUser.name,
