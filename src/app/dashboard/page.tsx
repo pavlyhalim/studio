@@ -1,8 +1,7 @@
+
 "use client"; // Required for useState, useEffect, and interactive components
 
 import { useState, useEffect } from 'react';
-import { Navbar } from '@/components/landing/navbar';
-import { Footer } from '@/components/landing/footer';
 import { useAuth, type UserRole } from '@/hooks/use-auth';
 import { StudentDashboard } from '@/components/dashboard/student/student-dashboard';
 import { ProfessorDashboard } from '@/components/dashboard/professor/professor-dashboard';
@@ -13,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
 
-export default function DashboardPage() {
+export default function DashboardHomePage() { // Renamed component
     // Use updated hook: `user` is now SimpleUser | null
     const { user, loading, role, setRole } = useAuth();
     const { toast } = useToast();
@@ -22,7 +21,7 @@ export default function DashboardPage() {
 
     // Update local dropdown state if the effective role from context changes
     useEffect(() => {
-        console.log("DashboardPage: Effective role from context changed to:", role);
+        console.log("DashboardHomePage: Effective role from context changed to:", role);
         setSelectedRole(role);
     }, [role]);
 
@@ -69,19 +68,9 @@ export default function DashboardPage() {
     // Show loading state while checking auth status or fetching user data
     if (loading) {
         return (
-             <div className="flex flex-col min-h-screen">
-                <Navbar />
-                <main className="flex-grow container mx-auto px-4 py-8 flex items-center justify-center">
-                    <Card className="w-full max-w-md text-center shadow-lg">
-                         <CardHeader>
-                            <CardTitle className="text-2xl">Loading Dashboard...</CardTitle>
-                         </CardHeader>
-                         <CardContent className="py-10">
-                             <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
-                         </CardContent>
-                    </Card>
-                </main>
-                <Footer />
+             // Centered loading spinner within the main content area
+             <div className="flex items-center justify-center min-h-[calc(100vh-200px)]"> {/* Adjust height as needed */}
+                 <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
              </div>
         );
     }
@@ -118,51 +107,48 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-secondary/5">
-        <Navbar />
-        <main className="flex-grow container mx-auto px-4 py-8 space-y-8">
-             {/* Role Selector */}
-             <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-border shadow-sm overflow-hidden">
-                <CardHeader>
-                    <CardTitle className="text-xl text-primary">
-                      {user ? "Your Role" : "Demo Role Selector"}
-                    </CardTitle>
-                    <CardDescription>
-                       {/* Use the role determined by context */}
-                       {user ? `You are logged in as a ${role || 'user with undetermined role'}.` : "Switch between dashboard views for demonstration purposes."}
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-                     <div className="flex items-center space-x-2 flex-shrink-0">
-                        <Label htmlFor="role-select" className="text-base font-medium text-foreground">Select Role:</Label>
-                        <Select
-                            value={selectedRole ?? ''} // Ensure dropdown reflects local state
-                            onValueChange={handleRoleChange}
-                            disabled={!!user} // Disable dropdown if user is logged in
-                        >
-                            <SelectTrigger id="role-select" className="w-[180px] bg-background shadow-inner">
-                                <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="student">Student</SelectItem>
-                                <SelectItem value="professor">Professor</SelectItem>
-                                <SelectItem value="admin">Admin</SelectItem>
-                            </SelectContent>
-                        </Select>
-                     </div>
-                     <p className="text-sm text-muted-foreground italic">
-                         {user ? "(Role is determined by your account.)" : "(Select a role to view the demo dashboard.)"}
-                     </p>
-                </CardContent>
-             </Card>
+    // Removed outer layout divs (Navbar, Footer), handled by dashboard/layout.tsx
+    <div className="space-y-8"> {/* Main content container */}
+         {/* Role Selector */}
+         <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-border shadow-sm overflow-hidden">
+            <CardHeader>
+                <CardTitle className="text-xl text-primary">
+                  {user ? "Your Role" : "Demo Role Selector"}
+                </CardTitle>
+                <CardDescription>
+                   {/* Use the role determined by context */}
+                   {user ? `You are logged in as a ${role || 'user with undetermined role'}.` : "Switch between dashboard views for demonstration purposes."}
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                 <div className="flex items-center space-x-2 flex-shrink-0">
+                    <Label htmlFor="role-select" className="text-base font-medium text-foreground">Select Role:</Label>
+                    <Select
+                        value={selectedRole ?? ''} // Ensure dropdown reflects local state
+                        onValueChange={handleRoleChange}
+                        disabled={!!user} // Disable dropdown if user is logged in
+                    >
+                        <SelectTrigger id="role-select" className="w-[180px] bg-background shadow-inner">
+                            <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="student">Student</SelectItem>
+                            <SelectItem value="professor">Professor</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                        </SelectContent>
+                    </Select>
+                 </div>
+                 <p className="text-sm text-muted-foreground italic">
+                     {user ? "(Role is determined by your account.)" : "(Select a role to view the demo dashboard.)"}
+                 </p>
+            </CardContent>
+         </Card>
 
-            {/* Render the appropriate dashboard based on the effective role */}
-            <div className="transition-opacity duration-300 ease-in-out">
-                {renderDashboardContent()}
-            </div>
+        {/* Render the appropriate dashboard based on the effective role */}
+        <div className="transition-opacity duration-300 ease-in-out">
+            {renderDashboardContent()}
+        </div>
 
-        </main>
-        <Footer />
     </div>
   );
 }
