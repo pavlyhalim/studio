@@ -13,9 +13,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  // Keep this commented out to allow access without login for demo/testing
   // useEffect(() => {
   //   // If loading is finished and there's no user, redirect to login
-  //   // Temporarily commented out to allow access without login
   //   if (!loading && !user) {
   //     router.push('/login?redirect=/dashboard'); // Redirect back to dashboard after login
   //   }
