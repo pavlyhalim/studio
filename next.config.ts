@@ -24,23 +24,21 @@ const nextConfig: NextConfig = {
   experimental: {
     serverComponentsExternalPackages: ['bcrypt'],
   },
-  // Add Webpack config to ignore the problematic file
+  // Add Webpack config to ignore the problematic file/packages
   webpack: (config, { isServer, webpack }) => {
-    // Use Webpack's IgnorePlugin to exclude the problematic file/module
-    // Try a simpler regex pattern
+    // Ignore problematic native module dependencies more broadly
     config.plugins.push(
       new webpack.IgnorePlugin({
-        resourceRegExp: /@mapbox\/node-pre-gyp/,
-        // Optionally, you can provide a context to narrow down the ignore scope
-        // contextRegExp: /node_modules/,
+        resourceRegExp: /^(node-pre-gyp|@mapbox\/node-pre-gyp|nw-pre-gyp)$/, // Ignore related packages
+        contextRegExp: /node_modules/, // Target only within node_modules
       })
     );
 
-    // Ignore specific problematic file as a fallback
+    // Specifically ignore the problematic HTML file with a more precise context
     config.plugins.push(
       new webpack.IgnorePlugin({
-        resourceRegExp: /nw-pre-gyp\/index\.html$/,
-        // contextRegExp: /node-pre-gyp\/lib\/util/, // More specific context if needed
+        resourceRegExp: /index\.html$/, // Target the specific file
+        contextRegExp: /node-pre-gyp\/lib\/util\/nw-pre-gyp$/, // Narrow the context
       })
     );
 
