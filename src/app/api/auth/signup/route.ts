@@ -31,8 +31,7 @@ export async function POST(request: Request) {
     // Hash the password using bcrypt
     const passwordHash = await bcrypt.hash(password, saltRounds); // Use await for async hashing
 
-    // Use the helper, but provide the hash directly
-    // Note: createSampleUser modified to accept hash directly or generate one if passwordPlain is given
+    // Use the helper, passing the generated hash
     const newUserObject = createSampleUser({
         name,
         email: lowerCaseEmail,

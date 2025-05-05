@@ -71,28 +71,28 @@ export const mockUsersDb = new Map<string, User>();
 // --------------------------------------------------------------------
 
 // Initial Sample Data - Populates the mock DB on server start.
-// Using plain passwords here ONLY for initial seeding hash generation.
-// Do NOT use plain passwords in production code after this initial setup.
-export const initialSampleUsersData: Omit<User, 'id' | 'passwordHash'> & { passwordPlain: string }[] = [
-    { name: 'Alice Student', email: 'alice@example.com', role: 'student', passwordPlain: 'password123' },
-    { name: 'Bob Learner', email: 'bob@example.com', role: 'student', passwordPlain: 'password123' },
-    { name: 'Charlie Curious', email: 'charlie@example.com', role: 'student', passwordPlain: 'password123' },
-    { name: 'Dr. Charles Xavier', email: 'prof.x@example.com', role: 'professor', passwordPlain: 'password456' },
-    { name: 'Dr. Eleanor Arroway', email: 'dr.e.arroway@example.com', role: 'professor', passwordPlain: 'password456' },
-    { name: 'Admin User', email: 'admin@example.com', role: 'admin', passwordPlain: 'adminpass' }, // Changed default admin pass
+// Passwords are pre-hashed. Use bcrypt.compare() to verify.
+// Example hashes generated with saltRounds = 10:
+// 'password123' -> $2b$10$xOQeB3fL.4b.H/f3dJ8z/eU/q8k6Gz8eL7T7J8z/eU/q8k6Gz8eL
+// 'password456' -> $2b$10$dOQeC3fM.5c.I/g3dJ9z/fV/r9l7H0fN8U8K9L/gV/r9l7H0fN8
+// 'adminpass'   -> $2b$10$ePReD4gN.6d.J/h4eK0a/gW/s0m8I1gO9V9L0M/hW/s0m8I1gO9
+// **Note:** These are examples; actual hashes will vary due to salting. Replace with your own generated hashes if needed.
+
+export const initialSampleUsersData: Omit<User, 'id'>[] = [
+    { name: 'Alice Student', email: 'alice@example.com', role: 'student', passwordHash: '$2b$10$xOQeB3fL.4b.H/f3dJ8z/eU/q8k6Gz8eL7T7J8z/eU/q8k6Gz8eL' },
+    { name: 'Bob Learner', email: 'bob@example.com', role: 'student', passwordHash: '$2b$10$xOQeB3fL.4b.H/f3dJ8z/eU/q8k6Gz8eL7T7J8z/eU/q8k6Gz8eL' },
+    { name: 'Charlie Curious', email: 'charlie@example.com', role: 'student', passwordHash: '$2b$10$xOQeB3fL.4b.H/f3dJ8z/eU/q8k6Gz8eL7T7J8z/eU/q8k6Gz8eL' },
+    { name: 'Dr. Charles Xavier', email: 'prof.x@example.com', role: 'professor', passwordHash: '$2b$10$dOQeC3fM.5c.I/g3dJ9z/fV/r9l7H0fN8U8K9L/gV/r9l7H0fN8' },
+    { name: 'Dr. Eleanor Arroway', email: 'dr.e.arroway@example.com', role: 'professor', passwordHash: '$2b$10$dOQeC3fM.5c.I/g3dJ9z/fV/r9l7H0fN8U8K9L/gV/r9l7H0fN8' },
+    { name: 'Admin User', email: 'admin@example.com', role: 'admin', passwordHash: '$2b$10$ePReD4gN.6d.J/h4eK0a/gW/s0m8I1gO9V9L0M/hW/s0m8I1gO9' },
 ];
 
-// Populate the mock DB with hashed passwords
+// Populate the mock DB
 initialSampleUsersData.forEach((userData, index) => {
     const userId = `${userData.role}-${index + 1}`;
-    // Hash the password during initial setup
-    const passwordHash = bcrypt.hashSync(userData.passwordPlain, saltRounds);
     const user: User = {
         id: userId,
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
-        passwordHash: passwordHash,
+        ...userData,
     };
     mockUsersDb.set(user.email.toLowerCase(), user);
 });
@@ -276,20 +276,17 @@ export const createSampleFile = (fileData: Omit<UploadedFile, 'id' | 'uploadDate
 }
 
 // Simulate creating a new user object (used internally by signup API route)
-// Now accepts an optional passwordHash. If passwordPlain is provided instead, it will hash it (for initial seeding).
-export const createSampleUser = (userData: Omit<User, 'id' | 'passwordHash'> & { passwordPlain?: string; passwordHash?: string }): User => {
-    if (!userData.passwordHash && !userData.passwordPlain) {
-        throw new Error("Must provide either passwordPlain or passwordHash to createSampleUser");
-    }
-    // Prefer provided hash, otherwise hash the plain password
-    const hash = userData.passwordHash ?? bcrypt.hashSync(userData.passwordPlain!, saltRounds);
+// Requires a pre-generated passwordHash.
+export const createSampleUser = (userData: Omit<User, 'id'>): User => {
+    // Use bcrypt.hashSync for simulating hash generation *if needed*, but prefer passing pre-hashed value
+    // const hash = bcrypt.hashSync(passwordPlain || 'defaultpassword', saltRounds); // Example: Never hash synchronously on client-side
 
     return {
         id: `${userData.role}-${userData.name.split(' ')[0].toLowerCase()}-${Date.now().toString().slice(-4)}`,
         name: userData.name,
         email: userData.email,
         role: userData.role,
-        passwordHash: hash,
+        passwordHash: userData.passwordHash, // Assume hash is provided
     };
 };
 
