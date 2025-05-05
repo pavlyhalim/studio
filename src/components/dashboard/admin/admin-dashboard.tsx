@@ -9,24 +9,23 @@ import {
     getInitialSampleUsersForClient, // Use function to get client-safe user list
     initialSampleCourses,
     initialSampleEnrollments,
-    initialSampleAssignments, // Need assignments to cascade delete
-    initialSampleGrades, // Need grades to cascade delete
+    initialSampleAssignments,
+    initialSampleGrades,
     initialSampleAnnouncements, // Added import
     initialSampleUploadedFiles, // Added import
-    createSampleUser,
-    createSampleCourse,
-    createSampleEnrollment, // Added import
-    createSampleAnnouncement, // Added import
-    createSampleFile, // Added import
-    mockUsersDb, // Import the mock DB to add/delete users
-    type User, // Full User type (used for creation/backend simulation)
+    createSampleUser, // Use simulation function
+    createSampleCourse, // Use simulation function
+    deleteSampleUser, // Use simulation function
+    deleteSampleCourse, // Use simulation function
+    mockUsersDb, // Import the mock DB for user lookups
+    type User, // Full User type (needed for lookups)
     type Course,
     type Enrollment,
     type Assignment,
     type Grade,
     type Announcement, // Added import
     type UploadedFile // Added import
-} from "@/lib/sample-data"; // Import initial data and create functions
+} from "@/lib/sample-data"; // Import initial data and simulation functions
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Input } from '@/components/ui/input';
@@ -59,18 +58,18 @@ type SimpleUser = Omit<User, 'passwordHash'>;
 
 export function AdminDashboard() {
   const { toast } = useToast();
-  // Initialize state with the imported initial sample data
-  const [users, setUsers] = useState<SimpleUser[]>(getInitialSampleUsersForClient()); // Use client-safe function
-  const [courses, setCourses] = useState<Course[]>(initialSampleCourses);
-  const [enrollments, setEnrollments] = useState<Enrollment[]>(initialSampleEnrollments);
-  // Keep track of assignments and grades for cascading deletes
-  const [assignments, setAssignments] = useState<Assignment[]>(initialSampleAssignments);
-  const [grades, setGrades] = useState<Grade[]>(initialSampleGrades);
 
+  // State for managing data displayed in the dashboard
+  // Initialize with client-safe data or mutable arrays for simulation
+  const [users, setUsers] = useState<SimpleUser[]>(getInitialSampleUsersForClient());
+  const [courses, setCourses] = useState<Course[]>(initialSampleCourses);
+  // Use enrollments state to track dynamic changes
+  const [enrollments, setEnrollments] = useState<Enrollment[]>(initialSampleEnrollments);
 
   // State for Add User form
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState(''); // Add password field
   const [newUserRole, setNewUserRole] = useState<'student' | 'professor' | 'admin' | ''>('');
 
   // State for Add Course form
@@ -93,48 +92,53 @@ export function AdminDashboard() {
   const totalCourses = courses.length;
 
 
+  // Re-sync local state if the underlying sample data arrays might change externally
+  // This is a simple way to reflect changes made by the simulation functions
+  useEffect(() => {
+    setUsers(getInitialSampleUsersForClient());
+    setCourses([...initialSampleCourses]); // Use spread to create new array reference
+    setEnrollments([...initialSampleEnrollments]);
+    // Note: Assignments, Grades etc. are not directly managed here, but deleted via cascade
+  }, []); // Run once on mount, or add dependencies if external changes need tracking
+
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newUserName || !newUserEmail || !newUserRole) {
-      toast({ title: "Missing Fields", description: "Please fill all user details.", variant: "destructive" });
+    if (!newUserName || !newUserEmail || !newUserPassword || !newUserRole) {
+      toast({ title: "Missing Fields", description: "Please fill name, email, password, and role.", variant: "destructive" });
       return;
     }
+     if (newUserPassword.length < 6) {
+        toast({ title: "Password Too Short", description: "Password must be at least 6 characters.", variant: "destructive" });
+        return;
+     }
 
     const lowerCaseEmail = newUserEmail.toLowerCase();
 
-    // Check if user already exists in current local state
-    if (users.some(u => u.email.toLowerCase() === lowerCaseEmail)) {
+    // Check if user already exists in the MOCK DB (simulating backend check)
+    if (mockUsersDb.has(lowerCaseEmail)) {
       toast({ title: "User Exists", description: `User with email ${newUserEmail} already exists.`, variant: "destructive" });
       return;
     }
 
-    // Simulate API call to create user (adds to mock DB and updates local state)
-    // In a real app, this would be an API call that returns the created user
+    // Simulate API call: Use createSampleUser which adds to mock DB and MUTATES sample data
     try {
-        // Hash a placeholder password (in real app, API handles hashing)
-        // This is just for the mock DB simulation
-        const placeholderPasswordHash = '$2b$10$placeholderhashfornewuser'; // Use a consistent placeholder or generate one
-
+        // The createSampleUser function now handles hashing and adding to mockUsersDb
         const newUserObject = createSampleUser({
             name: newUserName,
             email: lowerCaseEmail,
             role: newUserRole,
-            passwordHash: placeholderPasswordHash,
+            passwordPlain: newUserPassword, // Pass plain password for hashing simulation
         });
 
-        // Update the mock DB (simulating backend update)
-        mockUsersDb.set(lowerCaseEmail, newUserObject);
+        // Update local state IMMUTABLY by re-fetching the client-safe list
+        setUsers(getInitialSampleUsersForClient());
 
-        // Update local state immutably (without password hash)
-        const { passwordHash, ...newUserForClient } = newUserObject;
-        setUsers(currentUsers => [...currentUsers, newUserForClient]);
-
-
-        toast({ title: "User Added", description: `User ${newUserForClient.name} created successfully (simulated).` });
+        toast({ title: "User Added", description: `User ${newUserObject.name} created successfully (simulated).` });
 
         // Reset form
         setNewUserName('');
         setNewUserEmail('');
+        setNewUserPassword('');
         setNewUserRole('');
 
     } catch (error) {
@@ -143,35 +147,25 @@ export function AdminDashboard() {
     }
   };
 
-    const handleAddCourse = (e: React.FormEvent) => {
+  const handleAddCourse = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCourseTitle || !newCourseDescription || !newCourseProfessorId) {
       toast({ title: "Missing Fields", description: "Please fill all course details.", variant: "destructive" });
       return;
     }
 
-    // Check if course already exists in local state
-    if (courses.some(c => c.title.toLowerCase() === newCourseTitle.toLowerCase())) {
-        toast({ title: "Course Exists", description: `Course "${newCourseTitle}" already exists.`, variant: "destructive" });
-        return;
-    }
-
-    // Simulate creating a course object (doesn't mutate global state directly)
-    const simulationResult = createSampleCourse({ title: newCourseTitle, description: newCourseDescription, professorId: newCourseProfessorId });
+    // Use simulation function which checks for existing title and MUTATES sample data
+     const simulationResult = createSampleCourse({ title: newCourseTitle, description: newCourseDescription, professorId: newCourseProfessorId });
 
      if ('error' in simulationResult) {
          toast({ title: "Creation Error", description: simulationResult.error, variant: "destructive" });
          return;
      }
-     const newCourse = simulationResult;
 
-     // Update the component's local state immutably
-     setCourses(currentCourses => [...currentCourses, newCourse]);
+     // Update the component's local state by re-reading the mutated array
+     setCourses([...initialSampleCourses]);
 
-     // In a real app, you would also need to update the persistent storage (e.g., sample-data.ts or a DB)
-     // For demo: initialSampleCourses.push(newCourse); // Direct mutation - avoid in React, but needed for demo persistence across renders
-
-     toast({ title: "Course Added", description: `Course "${newCourse.title}" created successfully (simulated).` });
+     toast({ title: "Course Added", description: `Course "${simulationResult.title}" created successfully (simulated).` });
 
     // Reset form
     setNewCourseTitle('');
@@ -181,77 +175,47 @@ export function AdminDashboard() {
 
    // Simulate deleting a user
    const handleDeleteUser = (userId: string) => {
-     const userToDelete = users.find(u => u.id === userId);
+     const userToDelete = users.find(u => u.id === userId); // Find from local state
      if (!userToDelete) return;
 
-     // Prevent deleting the last admin or oneself (in a real app)
+     // Basic safety check
      if (userToDelete.role === 'admin' && users.filter(u => u.role === 'admin').length <= 1) {
          toast({ title: "Action Denied", description: "Cannot delete the last administrator.", variant: "destructive"});
          return;
      }
-     // TODO: Add check for deleting self if applicable (using useAuth context)
 
-      // Update the mock DB (simulating backend update)
-     const deletedFromDb = mockUsersDb.delete(userToDelete.email.toLowerCase());
-     if (!deletedFromDb) {
-        console.warn(`User ${userToDelete.email} not found in mock DB for deletion.`);
-        // Proceed with updating local state anyway
+      // Use simulation function which removes from mock DB and MUTATES sample data arrays
+     const success = deleteSampleUser(userId);
+
+     if (success) {
+         // Update local state by re-fetching client-safe list
+         setUsers(getInitialSampleUsersForClient());
+         // Update enrollments state as well, as they might have been cascaded
+         setEnrollments([...initialSampleEnrollments]);
+         toast({ title: "User Deleted", description: `User ${userToDelete.name} removed (simulated).` });
+     } else {
+          toast({ title: "Deletion Failed", description: `Could not delete user ${userToDelete.name}.`, variant: "destructive"});
      }
-
-
-     // Update local users state
-     const updatedUsers = users.filter(user => user.id !== userId);
-     setUsers(updatedUsers);
-
-     // Cascade delete enrollments associated with the user (if student)
-     if(userToDelete.role === 'student') {
-         const updatedEnrollments = enrollments.filter(e => e.studentId !== userId);
-         setEnrollments(updatedEnrollments);
-         // Also remove grades for this student
-         const updatedGrades = grades.filter(g => g.studentId !== userId);
-         setGrades(updatedGrades);
-         console.log(`Simulating removal of enrollments and grades for student ${userId}`);
-         // TODO: Update persistent storage (e.g., sample-data.ts arrays) for demo
-     }
-
-     // If professor, unassign courses or reassign
-     if(userToDelete.role === 'professor') {
-         // Mark courses as 'unassigned' or assign to a default admin/placeholder?
-         const updatedCourses = courses.map(c => c.professorId === userId ? { ...c, professorId: 'unassigned' } : c);
-         setCourses(updatedCourses);
-          console.log(`Simulating unassignment of courses for professor ${userId}`);
-          // TODO: Update persistent storage (e.g., sample-data.ts arrays) for demo
-          // Note: Files/Announcements might still be linked by professorId, handle if needed
-     }
-
-     toast({ title: "User Deleted", description: `User ${userToDelete.name} removed (simulated).` });
    };
 
    // Simulate deleting a course
     const handleDeleteCourse = (courseId: string) => {
-        const courseToDelete = courses.find(c => c.id === courseId);
+        const courseToDelete = courses.find(c => c.id === courseId); // Find from local state
         if (!courseToDelete) return;
 
-        // Update local courses state
-        const updatedCourses = courses.filter(course => course.id !== courseId);
-        setCourses(updatedCourses);
+        // Use simulation function which removes course and MUTATES related data arrays
+        const success = deleteSampleCourse(courseId);
 
-        // Cascade delete enrollments associated with the course
-         const updatedEnrollments = enrollments.filter(e => e.courseId !== courseId);
-         setEnrollments(updatedEnrollments);
-
-        // Cascade delete assignments associated with the course
-        const updatedAssignments = assignments.filter(a => a.courseId !== courseId);
-        setAssignments(updatedAssignments);
-
-        // Cascade delete grades associated with the course
-         const updatedGrades = grades.filter(g => g.courseId !== courseId);
-         setGrades(updatedGrades);
-
-        // In a real app, would also delete files, announcements etc.
-        // TODO: Update persistent storage (e.g., sample-data.ts arrays) for demo
-        console.log(`Simulating removal of related data (enrollments, assignments, grades) for course ${courseId}`);
-        toast({ title: "Course Deleted", description: `Course "${courseToDelete.title}" removed (simulated).` });
+        if (success) {
+            // Update local state by re-reading mutated arrays
+            setCourses([...initialSampleCourses]);
+            setEnrollments([...initialSampleEnrollments]);
+            // Note: Assignments, grades etc. related to this course are also removed
+            // from the sample data arrays by deleteSampleCourse
+            toast({ title: "Course Deleted", description: `Course "${courseToDelete.title}" removed (simulated).` });
+        } else {
+             toast({ title: "Deletion Failed", description: `Could not delete course "${courseToDelete.title}".`, variant: "destructive"});
+        }
     };
 
     // Handle Platform Settings Change
@@ -263,19 +227,13 @@ export function AdminDashboard() {
     const handleSaveSettings = async () => {
         setIsSavingSettings(true);
         console.log("Simulating saving platform settings:", platformSettings);
-        // In a real app, send settings to the backend API here
-        // Example: await api.updatePlatformSettings(platformSettings);
         await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate network delay
         setIsSavingSettings(false);
         toast({ title: "Settings Saved", description: "Platform settings have been updated (simulated)." });
 
-        // Apply theme change (basic example, real app might need global state/context or reload)
+        // Apply theme change (basic example)
         if (typeof window !== 'undefined') {
-             if (platformSettings.theme === 'dark') {
-                 document.documentElement.classList.add('dark');
-             } else {
-                 document.documentElement.classList.remove('dark');
-             }
+             document.documentElement.classList.toggle('dark', platformSettings.theme === 'dark');
         }
     };
 
@@ -287,165 +245,83 @@ export function AdminDashboard() {
       {/* Statistics Widgets */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-             <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalUsers}</div>
-            {/* <p className="text-xs text-muted-foreground">+X% from last month</p> */}
-          </CardContent>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Users</CardTitle><Users className="h-4 w-4 text-muted-foreground" /></CardHeader>
+          <CardContent><div className="text-2xl font-bold">{totalUsers}</div></CardContent>
         </Card>
         <Card>
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-             <CardTitle className="text-sm font-medium">Total Courses</CardTitle>
-             <BookOpen className="h-4 w-4 text-muted-foreground" />
-           </CardHeader>
-           <CardContent>
-             <div className="text-2xl font-bold">{totalCourses}</div>
-             {/* <p className="text-xs text-muted-foreground">+Y since last week</p> */}
-           </CardContent>
+           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Total Courses</CardTitle><BookOpen className="h-4 w-4 text-muted-foreground" /></CardHeader>
+           <CardContent><div className="text-2xl font-bold">{totalCourses}</div></CardContent>
         </Card>
          <Card>
-           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-             <CardTitle className="text-sm font-medium">Platform Status</CardTitle>
-             <Settings className="h-4 w-4 text-muted-foreground" />
-           </CardHeader>
-           <CardContent>
-             {/* Explicit color for status for clarity */}
-             <div className="text-2xl font-bold text-green-600 dark:text-green-400">Operational</div>
-             <p className="text-xs text-muted-foreground">All systems normal</p>
-           </CardContent>
+           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2"><CardTitle className="text-sm font-medium">Platform Status</CardTitle><Settings className="h-4 w-4 text-muted-foreground" /></CardHeader>
+           <CardContent><div className="text-2xl font-bold text-green-600 dark:text-green-400">Operational</div><p className="text-xs text-muted-foreground">All systems normal</p></CardContent>
         </Card>
       </div>
 
       {/* User Management Section */}
       <Card>
-        <CardHeader>
-          <CardTitle>User Management</CardTitle>
-           <CardDescription>View, add, or remove users from the platform.</CardDescription>
-        </CardHeader>
+        <CardHeader><CardTitle>User Management</CardTitle><CardDescription>View, add, or remove users from the platform.</CardDescription></CardHeader>
         <CardContent>
            <h3 className="text-lg font-semibold mb-3">Add New User</h3>
-            <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 border rounded-md bg-secondary/10">
-                 <div>
-                    <Label htmlFor="new-user-name">Name</Label>
-                    <Input id="new-user-name" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Full Name" required />
-                 </div>
-                 <div>
-                     <Label htmlFor="new-user-email">Email</Label>
-                    <Input id="new-user-email" type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="email@example.com" required />
-                 </div>
+            <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6 p-4 border rounded-md bg-secondary/10">
+                 <div><Label htmlFor="new-user-name">Name</Label><Input id="new-user-name" value={newUserName} onChange={(e) => setNewUserName(e.target.value)} placeholder="Full Name" required /></div>
+                 <div><Label htmlFor="new-user-email">Email</Label><Input id="new-user-email" type="email" value={newUserEmail} onChange={(e) => setNewUserEmail(e.target.value)} placeholder="email@example.com" required /></div>
+                 <div><Label htmlFor="new-user-password">Password</Label><Input id="new-user-password" type="password" value={newUserPassword} onChange={(e) => setNewUserPassword(e.target.value)} placeholder="Min. 6 characters" required /></div>
                  <div>
                      <Label htmlFor="new-user-role">Role</Label>
                      <Select value={newUserRole} onValueChange={(value) => setNewUserRole(value as any)} required>
-                         <SelectTrigger id="new-user-role">
-                            <SelectValue placeholder="Select role" />
-                         </SelectTrigger>
-                         <SelectContent>
-                            <SelectItem value="student">Student</SelectItem>
-                            <SelectItem value="professor">Professor</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                         </SelectContent>
+                         <SelectTrigger id="new-user-role"><SelectValue placeholder="Select role" /></SelectTrigger>
+                         <SelectContent><SelectItem value="student">Student</SelectItem><SelectItem value="professor">Professor</SelectItem><SelectItem value="admin">Admin</SelectItem></SelectContent>
                      </Select>
                  </div>
                  <div className="flex items-end">
-                    <Button type="submit" className="w-full">
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add User
-                    </Button>
+                    <Button type="submit" className="w-full"><PlusCircle className="mr-2 h-4 w-4" /> Add User</Button>
                  </div>
             </form>
 
            <h3 className="text-lg font-semibold mb-3">Existing Users ({users.length})</h3>
-          <ScrollArea className="h-72 border rounded-md"> {/* Added border */}
+          <ScrollArea className="h-72 border rounded-md">
             {users.length > 0 ? (
                 <ul className="divide-y divide-border">
                 {users.map(user => (
                     <li key={user.id} className="flex justify-between items-center p-3 hover:bg-secondary/10">
-                    <div className="flex items-center gap-3">
-                        {/* Optional: Add Avatar */}
-                        <div>
-                            <p className="font-medium">{user.name}</p>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                        <div className="flex items-center gap-3"><div><p className="font-medium">{user.name}</p><p className="text-sm text-muted-foreground">{user.email}</p></div></div>
+                        <div className="flex items-center gap-2">
+                            <Badge variant={user.role === 'admin' ? 'destructive' : user.role === 'professor' ? 'secondary' : 'outline'}>{user.role?.charAt(0).toUpperCase() + user.role?.slice(1)}</Badge>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete user ${user.name}`}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the user ({user.name}) and remove their associated data (enrollments, grades, etc.).</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteUser(user.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete User</AlertDialogAction></AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Badge variant={user.role === 'admin' ? 'destructive' : user.role === 'professor' ? 'secondary' : 'outline'}>
-                            {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)} {/* Added optional chaining */}
-                        </Badge>
-                        {/* Delete User Button with Confirmation */}
-                        <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete user ${user.name}`}>
-                                <Trash2 className="h-4 w-4" />
-                            </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the user
-                                ({user.name}) and remove their associated data (enrollments, grades, etc.).
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => handleDeleteUser(user.id)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                    Delete User
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
-                    </div>
                     </li>
                 ))}
                 </ul>
-            ) : (
-                <p className="text-center text-muted-foreground p-4">No users found.</p>
-            )}
+            ) : ( <p className="text-center text-muted-foreground p-4">No users found.</p> )}
           </ScrollArea>
-           {/* <Button variant="outline" className="mt-4" disabled>View All Users</Button> */}
         </CardContent>
       </Card>
 
       {/* Course Management Section */}
       <Card>
-        <CardHeader>
-          <CardTitle>Course Management</CardTitle>
-          <CardDescription>Create new courses or manage existing ones.</CardDescription>
-        </CardHeader>
+        <CardHeader><CardTitle>Course Management</CardTitle><CardDescription>Create new courses or manage existing ones.</CardDescription></CardHeader>
         <CardContent>
            <h3 className="text-lg font-semibold mb-3">Add New Course</h3>
             <form onSubmit={handleAddCourse} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 border rounded-md bg-secondary/10">
-                 <div>
-                    <Label htmlFor="new-course-title">Title</Label>
-                    <Input id="new-course-title" value={newCourseTitle} onChange={(e) => setNewCourseTitle(e.target.value)} placeholder="Course Title" required />
-                 </div>
-                 <div className="md:col-span-2">
-                     <Label htmlFor="new-course-description">Description</Label>
-                    <Input id="new-course-description" value={newCourseDescription} onChange={(e) => setNewCourseDescription(e.target.value)} placeholder="Brief description..." required />
-                 </div>
+                 <div><Label htmlFor="new-course-title">Title</Label><Input id="new-course-title" value={newCourseTitle} onChange={(e) => setNewCourseTitle(e.target.value)} placeholder="Course Title" required /></div>
+                 <div className="md:col-span-2"><Label htmlFor="new-course-description">Description</Label><Input id="new-course-description" value={newCourseDescription} onChange={(e) => setNewCourseDescription(e.target.value)} placeholder="Brief description..." required /></div>
                  <div>
                      <Label htmlFor="new-course-professor">Assign Professor</Label>
                      <Select value={newCourseProfessorId} onValueChange={(value) => setNewCourseProfessorId(value)} required>
-                         <SelectTrigger id="new-course-professor">
-                            <SelectValue placeholder="Select professor" />
-                         </SelectTrigger>
+                         <SelectTrigger id="new-course-professor"><SelectValue placeholder="Select professor" /></SelectTrigger>
                          <SelectContent>
-                             {professors.length > 0 ? professors.map(prof => (
-                                <SelectItem key={prof.id} value={prof.id}>{prof.name}</SelectItem>
-                             )) : <SelectItem value="" disabled>No professors available</SelectItem>}
+                             {professors.length > 0 ? professors.map(prof => (<SelectItem key={prof.id} value={prof.id}>{prof.name}</SelectItem>)) : <SelectItem value="" disabled>No professors available</SelectItem>}
                          </SelectContent>
                      </Select>
                  </div>
-                 <div className="md:col-start-4 flex items-end">
-                    <Button type="submit" className="w-full" disabled={professors.length === 0}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Course
-                    </Button>
-                 </div>
+                 <div className="md:col-start-4 flex items-end"><Button type="submit" className="w-full" disabled={professors.length === 0}><PlusCircle className="mr-2 h-4 w-4" /> Add Course</Button></div>
             </form>
 
             <h3 className="text-lg font-semibold mb-3">Existing Courses ({courses.length})</h3>
@@ -460,48 +336,21 @@ export function AdminDashboard() {
 
                         return (
                             <li key={course.id} className="flex justify-between items-center p-3 hover:bg-secondary/10">
-                            <div>
-                                <p className="font-medium">{course.title}</p>
-                                <p className="text-sm text-muted-foreground">
-                                    Professor: {professor?.name ?? <span className="text-destructive">Unassigned</span>} | Students: {studentCount}
-                                </p>
-                            </div>
+                            <div><p className="font-medium">{course.title}</p><p className="text-sm text-muted-foreground">Professor: {professor?.name ?? <span className="text-destructive">Unassigned</span>} | Students: {studentCount}</p></div>
                             <div className="flex items-center gap-2">
-                                {/* Delete Course Button */}
                                 <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete course ${course.title}`}>
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                    </AlertDialogTrigger>
+                                    <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete course ${course.title}`}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
                                     <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                        This action cannot be undone. This will permanently delete the course
-                                        "{course.title}" and all associated data (assignments, grades, enrollments, files).
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={() => handleDeleteCourse(course.id)}
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        >
-                                            Delete Course
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
+                                        <AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the course "{course.title}" and all associated data (assignments, grades, enrollments, files).</AlertDialogDescription></AlertDialogHeader>
+                                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteCourse(course.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Course</AlertDialogAction></AlertDialogFooter>
                                     </AlertDialogContent>
                                 </AlertDialog>
-                                {/* <Button variant="outline" size="sm" disabled>Manage</Button> */}
                             </div>
                             </li>
                         );
                         })}
                     </ul>
-                ) : (
-                    <p className="text-center text-muted-foreground p-4">No courses found.</p>
-                )}
+                ) : ( <p className="text-center text-muted-foreground p-4">No courses found.</p> )}
             </ScrollArea>
         </CardContent>
       </Card>
@@ -509,28 +358,15 @@ export function AdminDashboard() {
 
        {/* Platform Settings Section */}
        <Card>
-        <CardHeader>
-          <CardTitle>Platform Settings</CardTitle>
-           <CardDescription>Configure global platform settings.</CardDescription>
-        </CardHeader>
+        <CardHeader><CardTitle>Platform Settings</CardTitle><CardDescription>Configure global platform settings.</CardDescription></CardHeader>
         <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                  {/* AI Model Configuration */}
                  <div className="space-y-2">
                     <Label htmlFor="ai-model-select">AI Model</Label>
-                    <Select
-                        value={platformSettings.aiModel}
-                        onValueChange={(value) => handleSettingChange('aiModel', value)}
-                        >
-                        <SelectTrigger id="ai-model-select">
-                            <SelectValue placeholder="Select AI model" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {/* Add more models as needed/supported */}
-                            <SelectItem value="googleai/gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
-                            <SelectItem value="googleai/gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
-                            <SelectItem value="googleai/gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
-                        </SelectContent>
+                    <Select value={platformSettings.aiModel} onValueChange={(value) => handleSettingChange('aiModel', value)}>
+                        <SelectTrigger id="ai-model-select"><SelectValue placeholder="Select AI model" /></SelectTrigger>
+                        <SelectContent><SelectItem value="googleai/gemini-2.0-flash">Gemini 2.0 Flash</SelectItem><SelectItem value="googleai/gemini-1.5-pro">Gemini 1.5 Pro</SelectItem><SelectItem value="googleai/gemini-1.5-flash">Gemini 1.5 Flash</SelectItem></SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">Select the primary AI model for chatbot and features.</p>
                  </div>
@@ -538,17 +374,9 @@ export function AdminDashboard() {
                  {/* Theme Selection */}
                  <div className="space-y-2">
                     <Label htmlFor="theme-select">Platform Theme</Label>
-                    <Select
-                        value={platformSettings.theme}
-                        onValueChange={(value) => handleSettingChange('theme', value as 'light' | 'dark')}
-                        >
-                        <SelectTrigger id="theme-select">
-                            <SelectValue placeholder="Select theme" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="light">Light</SelectItem>
-                            <SelectItem value="dark">Dark</SelectItem>
-                        </SelectContent>
+                    <Select value={platformSettings.theme} onValueChange={(value) => handleSettingChange('theme', value as 'light' | 'dark')}>
+                        <SelectTrigger id="theme-select"><SelectValue placeholder="Select theme" /></SelectTrigger>
+                        <SelectContent><SelectItem value="light">Light</SelectItem><SelectItem value="dark">Dark</SelectItem></SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">Choose the default appearance for the platform.</p>
                  </div>
@@ -558,41 +386,17 @@ export function AdminDashboard() {
             <div className="space-y-4">
                  <h4 className="font-medium">Feature Flags</h4>
                  <div className="flex items-center justify-between p-3 border rounded-md">
-                    <div>
-                        <Label htmlFor="enable-study-planner" className="font-normal">Enable AI Study Planner</Label>
-                         <p className="text-xs text-muted-foreground">Activates the AI-powered study planning feature for students.</p>
-                    </div>
-                    <Switch
-                        id="enable-study-planner"
-                        checked={platformSettings.enableStudyPlanner}
-                        onCheckedChange={(checked) => handleSettingChange('enableStudyPlanner', checked)}
-                    />
+                    <div><Label htmlFor="enable-study-planner" className="font-normal">Enable AI Study Planner</Label><p className="text-xs text-muted-foreground">Activates the AI-powered study planning feature for students.</p></div>
+                    <Switch id="enable-study-planner" checked={platformSettings.enableStudyPlanner} onCheckedChange={(checked) => handleSettingChange('enableStudyPlanner', checked)}/>
                  </div>
                  <div className="flex items-center justify-between p-3 border rounded-md">
-                    <div>
-                        <Label htmlFor="enable-live-transcriptions" className="font-normal">Enable Live Lecture Transcriptions</Label>
-                         <p className="text-xs text-muted-foreground">Provides real-time transcriptions during live video sessions (feature not implemented).</p>
-                    </div>
-                    <Switch
-                        id="enable-live-transcriptions"
-                        checked={platformSettings.enableLiveTranscriptions}
-                        onCheckedChange={(checked) => handleSettingChange('enableLiveTranscriptions', checked)}
-                        // Disabled for demo as it's not implemented
-                        disabled
-                    />
+                    <div><Label htmlFor="enable-live-transcriptions" className="font-normal">Enable Live Lecture Transcriptions</Label><p className="text-xs text-muted-foreground">Provides real-time transcriptions during live video sessions (feature not implemented).</p></div>
+                    <Switch id="enable-live-transcriptions" checked={platformSettings.enableLiveTranscriptions} onCheckedChange={(checked) => handleSettingChange('enableLiveTranscriptions', checked)} disabled />
                  </div>
             </div>
 
              <Button onClick={handleSaveSettings} disabled={isSavingSettings} className="w-full md:w-auto">
-                 {isSavingSettings ? (
-                    <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...
-                    </>
-                 ) : (
-                    <>
-                        <Save className="mr-2 h-4 w-4"/> Save Settings
-                    </>
-                 )}
+                 {isSavingSettings ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : <><Save className="mr-2 h-4 w-4"/> Save Settings</>}
              </Button>
         </CardContent>
       </Card>

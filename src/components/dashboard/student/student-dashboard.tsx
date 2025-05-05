@@ -12,21 +12,22 @@ import {
     getInitialSampleUsersForClient,
     initialSampleEnrollments,
     initialSampleAssignments,
-    initialSampleGrades,
-    initialSampleAnnouncements,
-    initialSampleUploadedFiles, // Import files
+    getGradesForStudent, // Use new function
+    initialSampleAnnouncements, // Use initial arrays
+    initialSampleUploadedFiles, // Use initial arrays
     getCoursesByStudent,
     getUpcomingAssignmentsForStudent,
-    // getRecentGradesForStudent is removed, we'll handle logic locally
     getAnnouncementsForStudent,
-    getFilesForStudent, // Need a function to get files
-    createSampleEnrollment,
+    getFilesForStudent,
+    createSampleEnrollment, // Use create function
+    mockUsersDb, // Need mock DB to find professor name
     type Course,
     type Enrollment,
     type Assignment,
     type Grade,
     type Announcement,
-    type UploadedFile // Import type
+    type UploadedFile,
+    type User // Import full User type for professor lookup
 } from '@/lib/sample-data';
 import { PlusCircle, BookOpen, Clock, FileText, Award, Megaphone, Wand2, BarChart2, Download, Video } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -35,13 +36,19 @@ import { Badge } from '@/components/ui/badge';
 import { StudyPlannerDialog } from './study-planner-dialog';
 import { ProgressAnalyticsDialog } from './progress-analytics-dialog';
 
+// Define SimpleUser type without password hash for client-side state
+type SimpleUser = Omit<User, 'passwordHash'>;
+
+
 export function StudentDashboard() {
-  const { userId, user } = useAuth(); // Get the user object as well
+  // Use simplified user object from useAuth
+  const { user, userId } = useAuth();
   const { toast } = useToast();
 
-  // State for data - Initialize based on initial sample data
-  const [allUsers, setAllUsers] = useState(() => getInitialSampleUsersForClient()); // Use function initializer
-  const [enrollments, setEnrollments] = useState<Enrollment[]>(initialSampleEnrollments); // Local state for enrollments
+  // State for data - Initialize based on initial sample data arrays
+  // We manage enrollments locally to simulate adding/removing
+  const [enrollments, setEnrollments] = useState<Enrollment[]>(initialSampleEnrollments);
+  // Other data is derived or filtered based on enrollments/userId
   const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
   const [availableCourses, setAvailableCourses] = useState<Course[]>([]);
   const [upcomingAssignments, setUpcomingAssignments] = useState<Assignment[]>([]);
@@ -56,6 +63,7 @@ export function StudentDashboard() {
   }, [user]);
 
 
+  // Effect to derive student-specific data when userId or enrollments change
   useEffect(() => {
     if (userId) {
         // Filter enrollments for the current user from local state
@@ -69,32 +77,33 @@ export function StudentDashboard() {
         setEnrolledCourses(studentEnrolledCourses);
         setAvailableCourses(studentAvailableCourses);
 
-        // Fetch other student-specific data using helpers (these read from initial samples)
+        // Fetch other student-specific data using helpers (these read from the mutable initial arrays)
         setUpcomingAssignments(getUpcomingAssignmentsForStudent(userId, 14)); // Look 2 weeks ahead
 
-        // Get ALL grades for the student for analytics from initial sample
-        const studentAllGrades = initialSampleGrades.filter(grade => grade.studentId === userId);
+        // Get ALL grades for the student for analytics
+        const studentAllGrades = getGradesForStudent(userId);
         setAllGrades(studentAllGrades);
-        // Get recent grades for dashboard display
+
+        // Get recent grades for dashboard display (sorted and sliced)
         setRecentGradesDisplay(
-            studentAllGrades
+            [...studentAllGrades] // Create a copy before sorting
                 .sort((a, b) => b.gradedDate.getTime() - a.gradedDate.getTime())
                 .slice(0, 5) // Limit display on dashboard
         );
 
         // Get recent announcements and files for enrolled courses
         setRecentAnnouncements(getAnnouncementsForStudent(userId, 5));
-        setCourseFiles(getFilesForStudent(userId)); // Fetch files for the student
+        setCourseFiles(getFilesForStudent(userId));
 
     } else {
         // If no userId (not logged in or role mismatch in demo), show defaults
         setEnrolledCourses([]);
         setAvailableCourses(initialSampleCourses); // Show all as available
         setUpcomingAssignments([]);
-        setRecentGradesDisplay([]); // Clear grades display if no user
-        setAllGrades([]); // Clear all grades if no user
+        setRecentGradesDisplay([]);
+        setAllGrades([]);
         setRecentAnnouncements([]);
-        setCourseFiles([]); // Clear files
+        setCourseFiles([]);
     }
   }, [userId, enrollments]); // Rerun when userId or local enrollments change
 
@@ -110,32 +119,35 @@ export function StudentDashboard() {
         return;
     }
 
-    // **Simulate enrollment**: Create a new enrollment object and update local state
-    // In a real app, this would be an API call that returns the new enrollment or confirms success.
+    // **Simulate enrollment**: Create a new enrollment object (this MUTATES the sample data array)
     const newEnrollment = createSampleEnrollment(userId, courseId);
-    setEnrollments(currentEnrollments => [...currentEnrollments, newEnrollment]);
 
-    // Update sample data array directly for demo persistence during session
-    // NOTE: This direct mutation is generally bad practice in React but used here for simulation.
-    // In a real app, the backend would be the source of truth.
-    // initialSampleEnrollments.push(newEnrollment); // Remove direct mutation
+    // Update local state to trigger re-render
+    // This ensures the UI reflects the change immediately
+    setEnrollments(currentEnrollments => [...currentEnrollments, newEnrollment]);
 
     const enrolledCourse = initialSampleCourses.find(c => c.id === courseId);
     toast({ title: "Enrollment Successful", description: `You have enrolled in "${enrolledCourse?.title ?? 'the course'}"` });
-
-    // No need to refetch manually here, the useEffect dependency on `enrollments` will trigger a re-render
+    // The useEffect hook will automatically update enrolledCourses and availableCourses
   };
 
-  // Function to get professor name from ID
-  const getProfessorName = (profId: string | undefined) => {
-    if (!profId) return 'N/A';
-    return allUsers.find(u => u.id === profId)?.name ?? 'Unknown Professor';
-  };
+   // Function to get professor name from ID using mock DB
+   const getProfessorName = (profId: string | undefined): string => {
+        if (!profId) return 'N/A';
+        // Find the user in the mock DB by ID
+        for (const userEntry of mockUsersDb.values()) {
+            if (userEntry.id === profId && userEntry.role === 'professor') {
+                return userEntry.name;
+            }
+        }
+        return 'Unknown Professor';
+    };
 
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold text-primary mb-4">Student Dashboard</h1>
+      {/* Updated welcome message to use memoized studentName */}
       <p className="text-lg text-muted-foreground">Welcome back, {studentName}!</p>
 
        {/* Dashboard Overview Grid */}
@@ -146,11 +158,10 @@ export function StudentDashboard() {
                 <Card className="shadow-md hover:shadow-lg transition-shadow">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-lg font-medium flex items-center"><BookOpen className="mr-2 h-5 w-5 text-primary"/> My Enrolled Courses ({enrolledCourses.length})</CardTitle>
-                        {/* Optional: Link to view all courses page */}
                     </CardHeader>
                     <CardContent>
                     {enrolledCourses.length > 0 ? (
-                        <ScrollArea className="h-48 pr-4"> {/* Added padding right */}
+                        <ScrollArea className="h-48 pr-4">
                         <ul className="space-y-3">
                             {enrolledCourses.map(course => (
                             <li key={course.id} className="flex justify-between items-center p-3 border rounded-md bg-secondary/20 shadow-sm transition-colors hover:bg-secondary/30">
@@ -159,7 +170,6 @@ export function StudentDashboard() {
                                     <p className="text-sm text-muted-foreground">{course.description}</p>
                                     <p className="text-xs text-muted-foreground mt-1">Professor: {getProfessorName(course.professorId)}</p>
                                 </div>
-                                {/* TODO: Implement link/navigation to actual course page */}
                                 <Button variant="ghost" size="sm" disabled className="text-primary/70 hover:text-primary">Go to Course</Button>
                             </li>
                             ))}
@@ -179,7 +189,7 @@ export function StudentDashboard() {
                     </CardHeader>
                     <CardContent>
                     {availableCourses.length > 0 ? (
-                        <ScrollArea className="h-60 pr-4"> {/* Added padding right */}
+                        <ScrollArea className="h-60 pr-4">
                         <ul className="space-y-3">
                             {availableCourses.map(course => (
                             <li key={course.id}>
@@ -195,9 +205,9 @@ export function StudentDashboard() {
                                         <Button
                                             size="sm"
                                             onClick={() => handleEnroll(course.id)}
-                                            disabled={!userId} // Disable if not logged in
+                                            disabled={!userId} // Disable if not logged in (or demo mode without ID)
                                             variant="default"
-                                            className="bg-accent hover:bg-accent/90" // Use accent for enroll
+                                            className="bg-accent hover:bg-accent/90"
                                             aria-label={`Enroll in ${course.title}`}
                                          >
                                              <PlusCircle className="mr-2 h-4 w-4" /> Enroll
@@ -225,7 +235,7 @@ export function StudentDashboard() {
                     </CardHeader>
                     <CardContent>
                         {upcomingAssignments.length > 0 ? (
-                            <ScrollArea className="h-40 pr-4"> {/* Added padding right */}
+                            <ScrollArea className="h-40 pr-4">
                                 <ul className="space-y-2">
                                     {upcomingAssignments.map(assign => {
                                         const course = enrolledCourses.find(c => c.id === assign.courseId);
@@ -236,7 +246,6 @@ export function StudentDashboard() {
                                                 <p className="text-xs text-destructive/90">
                                                     Due: {format(assign.dueDate, 'PPp')} ({formatDistanceToNow(assign.dueDate, { addSuffix: true })})
                                                 </p>
-                                                 {/* TODO: Implement navigation to assignment details */}
                                                  <Button variant="link" size="sm" className="h-auto p-0 mt-1 text-xs text-accent hover:text-accent/80" disabled>View Details</Button>
                                             </li>
                                         );
@@ -257,13 +266,15 @@ export function StudentDashboard() {
                   </CardHeader>
                   <CardContent>
                       {recentGradesDisplay.length > 0 ? (
-                        <ScrollArea className="h-40 pr-4"> {/* Added padding right */}
+                        <ScrollArea className="h-40 pr-4">
                             <ul className="space-y-2">
                                 {recentGradesDisplay.map(grade => {
+                                     // Find assignment using the mutable initialSampleAssignments array
                                      const assignment = initialSampleAssignments.find(a => a.id === grade.assignmentId);
                                      const course = initialSampleCourses.find(c => c.id === grade.courseId);
-                                     const percentage = grade.maxScore > 0 ? Math.round((grade.score / grade.maxScore) * 100) : 0;
-                                     const scoreValid = grade.maxScore > 0;
+                                     const maxScore = assignment?.maxScore ?? 100; // Fallback max score
+                                     const percentage = maxScore > 0 ? Math.round((grade.score / maxScore) * 100) : 0;
+                                     const scoreValid = maxScore > 0;
                                      const variant : "success" | "secondary" | "destructive" | "default" | "outline" | null | undefined = scoreValid ? (percentage >= 80 ? "success" : percentage >= 60 ? "secondary" : "destructive") : "outline";
 
                                     return (
@@ -277,7 +288,7 @@ export function StudentDashboard() {
                                                     <p className="text-xs text-muted-foreground">Graded: {format(grade.gradedDate, 'PP')}</p>
                                                 </div>
                                                  <Badge variant={variant} className="ml-2 flex-shrink-0">
-                                                    {scoreValid ? `${grade.score}/${grade.maxScore} (${percentage}%)` : 'N/A'}
+                                                    {scoreValid ? `${grade.score}/${maxScore} (${percentage}%)` : 'N/A'}
                                                 </Badge>
                                             </div>
                                             {grade.feedback && <p className="text-xs text-muted-foreground mt-1 italic border-l-2 pl-2">Feedback: {grade.feedback}</p>}
@@ -291,11 +302,11 @@ export function StudentDashboard() {
                      )}
                   </CardContent>
                    <CardFooter>
-                       {/* Progress Analytics Dialog Trigger - Pass ALL grades */}
+                       {/* Pass all grades and all assignments for full analytics */}
                        <ProgressAnalyticsDialog
                            grades={allGrades}
-                           assignments={initialSampleAssignments} // Pass assignments for lookup
-                           enrolledCourses={enrolledCourses} // Pass currently enrolled courses
+                           assignments={initialSampleAssignments}
+                           enrolledCourses={enrolledCourses}
                         />
                    </CardFooter>
                 </Card>
@@ -308,16 +319,16 @@ export function StudentDashboard() {
                     </CardHeader>
                     <CardContent>
                          {recentAnnouncements.length > 0 ? (
-                            <ScrollArea className="h-48 pr-4"> {/* Added padding right */}
+                            <ScrollArea className="h-48 pr-4">
                                 <ul className="space-y-3">
                                     {recentAnnouncements.map(ann => {
                                         const course = initialSampleCourses.find(c => c.id === ann.courseId);
-                                        const professor = allUsers.find(u => u.id === ann.professorId);
+                                        const professorName = getProfessorName(ann.professorId);
                                         return (
                                              <li key={ann.id} className="text-sm p-3 border rounded bg-secondary/10 shadow-sm hover:bg-secondary/20 transition-colors">
                                                 <p className="font-semibold text-primary">{ann.title}</p>
                                                 <p className="text-xs text-muted-foreground mb-1">
-                                                    From: {professor?.name ?? 'N/A'} | Course: {course?.title ?? 'N/A'} | {formatDistanceToNow(ann.postedDate, { addSuffix: true })}
+                                                    From: {professorName} | Course: {course?.title ?? 'N/A'} | {formatDistanceToNow(ann.postedDate, { addSuffix: true })}
                                                 </p>
                                                 <p className="whitespace-pre-wrap text-foreground/90">{ann.content}</p>
                                             </li>
@@ -341,7 +352,7 @@ export function StudentDashboard() {
             </CardHeader>
             <CardContent>
                 {courseFiles.length > 0 ? (
-                    <ScrollArea className="h-60 pr-4"> {/* Consistent scrollbar */}
+                    <ScrollArea className="h-60 pr-4">
                         <ul className="space-y-2">
                             {courseFiles.map(file => {
                                 const course = enrolledCourses.find(c => c.id === file.courseId);
@@ -357,6 +368,7 @@ export function StudentDashboard() {
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             <Badge variant="outline" className="text-xs">{file.sizeKB} KB</Badge>
+                                            {/* Use 'a' tag for download/play */}
                                             <Button variant="outline" size="sm" asChild disabled={!file.url || file.url === '#'} aria-label={`${file.fileType.startsWith('video/') ? 'Play' : 'Download'} file ${file.fileName}`}>
                                                 <a href={file.url} target="_blank" rel="noopener noreferrer" download={!file.fileType.startsWith('video/') ? file.fileName : undefined}>
                                                     <Download className="mr-1 h-3 w-3" /> {file.fileType.startsWith('video/') ? 'Play' : 'Download'}
@@ -383,6 +395,7 @@ export function StudentDashboard() {
                     <CardDescription>Generate an AI-powered study plan based on your courses and goals.</CardDescription>
                 </CardHeader>
                 <CardContent>
+                     {/* Pass the currently upcoming assignments */}
                      <StudyPlannerDialog
                         enrolledCourses={enrolledCourses}
                         upcomingAssignments={upcomingAssignments}
@@ -395,9 +408,10 @@ export function StudentDashboard() {
                 <CardDescription>View your overall course progress and performance analytics.</CardDescription>
               </CardHeader>
               <CardContent>
+                  {/* Pass all grades and relevant assignments/courses */}
                   <ProgressAnalyticsDialog
                      grades={allGrades}
-                     assignments={initialSampleAssignments}
+                     assignments={initialSampleAssignments} // Pass full list for lookup
                      enrolledCourses={enrolledCourses}
                    />
               </CardContent>
@@ -406,10 +420,10 @@ export function StudentDashboard() {
 
         {/* Include Chatbot - Full Width Below Functional Sections */}
        <div className="mt-6">
+            {/* Pass user object to Chatbot */}
             <Chatbot />
        </div>
 
     </div>
   );
 }
-
