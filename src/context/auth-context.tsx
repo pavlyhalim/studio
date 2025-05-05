@@ -21,7 +21,8 @@ interface AuthContextType {
   signInWithEmailPassword: (email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
   signUpWithEmailPassword: (name: string, email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
   signOut: () => Promise<void>;
-  role: UserRole; // Effective role (user's role or null if logged out)
+  role: UserRole; // Effective role (user's role or demoRole if logged out)
+  setRole: (role: UserRole) => void; // Function to set the demoRole when logged out
   userId: string | null; // Added userId for convenience
 }
 
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true); // Start loading until session check is done
   const { toast } = useToast();
   const [sessionToken, setSessionToken] = useState<string | null>(null); // Simulate session/token
+  const [demoRole, setDemoRole] = useState<UserRole>('student'); // Default demo role
 
   // Wrap session check in useEffect to run only on the client
   useEffect(() => {
@@ -189,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSessionToken(null);
         if (typeof window !== 'undefined') localStorage.removeItem('authToken');
         toast({ title: "Successfully signed out." });
+        setDemoRole('student'); // Reset demo role on sign out
     } catch (error: any) {
       handleAuthError(error, "Sign-Out");
     } finally {
@@ -196,13 +199,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Role is now directly derived from the authenticated user
+  // Function to set the demo role, only works if user is not logged in
+  const handleSetRole = useCallback((role: UserRole) => {
+    if (!user) {
+      setDemoRole(role);
+    } else {
+      console.warn("Cannot set demo role while logged in.");
+      // Optionally provide feedback to the user
+      // toast({ title: "Action Denied", description: "Log out to switch demo roles." });
+    }
+  }, [user]); // Depend on user state
+
+
+  // Role is now derived from the authenticated user OR the demo role
   const currentRole = useMemo(() => {
-    return user?.role ?? null;
-  }, [user]);
+    return user?.role ?? demoRole; // Prioritize user's actual role
+  }, [user, demoRole]);
 
    const currentUserId = useMemo(() => {
-     return user?.id ?? null;
+     return user?.id ?? null; // Use user's ID if logged in
    }, [user]);
 
 
@@ -213,17 +228,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUpWithEmailPassword,
     signOut,
     role: currentRole,
-    userId: currentUserId, // Add userId to context value
+    setRole: handleSetRole, // Expose the function to set demo role
+    userId: currentUserId,
   }), [
       user,
       loading,
       currentRole,
-      currentUserId, // Add dependency
-      // signInWithEmailPassword, signUpWithEmailPassword, signOut are stable
+      currentUserId,
+      handleSetRole, // Add handleSetRole to dependencies
+      // signInWithEmailPassword, signUpWithEmailPassword, signOut are stable due to useCallback or being defined outside
     ]);
 
 
   // Render children directly while loading, initial check happens client-side
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-

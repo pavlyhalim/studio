@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Add bcrypt to serverComponentsExternalPackages to prevent bundling issues
+  experimental: {
+    serverComponentsExternalPackages: ['bcrypt'],
+  },
 };
 
 export default nextConfig;

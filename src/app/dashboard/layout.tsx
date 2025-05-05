@@ -1,3 +1,4 @@
+
 "use client"; // Required for client-side hooks and logic
 
 import type { ReactNode } from 'react';
@@ -12,14 +13,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    // If loading is finished and there's no user, redirect to login
-    if (!loading && !user) {
-      router.push('/login?redirect=/dashboard'); // Redirect back to dashboard after login
-    }
-  }, [user, loading, router]);
+  // useEffect(() => {
+  //   // If loading is finished and there's no user, redirect to login
+  //   // Temporarily commented out to allow access without login
+  //   if (!loading && !user) {
+  //     router.push('/login?redirect=/dashboard'); // Redirect back to dashboard after login
+  //   }
+  // }, [user, loading, router]);
 
-  // Show loading state while checking authentication
+  // Show loading state while checking authentication (still useful even if not redirecting)
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -28,19 +30,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // If user is authenticated, render the dashboard layout
-  if (user) {
-    return (
-      <div className="flex flex-col min-h-screen">
-        <Navbar /> {/* Keep the main navbar */}
-        <main className="flex-grow container mx-auto px-4 py-8">
-          {children} {/* Page content will be rendered here */}
-        </main>
-        <Footer /> {/* Keep the main footer */}
-      </div>
-    );
-  }
-
-  // If not loading and no user (should be redirecting, but return null as fallback)
-  return null;
+  // Render the dashboard layout regardless of user authentication status for now
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Navbar /> {/* Keep the main navbar */}
+      <main className="flex-grow container mx-auto px-4 py-8">
+        {children} {/* Page content will be rendered here */}
+      </main>
+      <Footer /> {/* Keep the main footer */}
+    </div>
+  );
 }

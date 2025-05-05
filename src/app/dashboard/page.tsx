@@ -14,6 +14,8 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function DashboardHomePage() { // Renamed component
     // Use updated hook: `user` is now SimpleUser | null
+    // role is the effective role (user's or demo)
+    // setRole now sets the demoRole if logged out
     const { user, loading, role, setRole } = useAuth();
     const { toast } = useToast();
     // Local state manages the dropdown selection visually
@@ -26,41 +28,42 @@ export default function DashboardHomePage() { // Renamed component
     }, [role]);
 
 
-    // Handle role change from the dropdown selector (FOR DEMO PURPOSES WHEN LOGGED OUT)
+    // Handle role change from the dropdown selector
     const handleRoleChange = (newRole: string) => {
         const validRole = newRole as UserRole;
-        // Only allow setting the role via dropdown if the user is NOT logged in
-        if (!user) {
-            if (validRole && ['student', 'professor', 'admin'].includes(validRole)) {
-                 console.log("Role selected in dropdown (demo mode):", validRole);
-                 if (typeof setRole === 'function') {
-                    // setRole now only updates the demo state if logged out
-                    setRole(validRole);
-                 } else {
-                     console.error("setRole is not available or not a function in AuthContext.");
-                     toast({
-                        title: "Error",
-                        description: "Could not change demo role.",
-                        variant: "destructive",
-                     });
-                 }
-                // Update local state immediately to reflect change in dropdown
-                setSelectedRole(validRole);
-            } else {
-                console.warn("Invalid role selected:", newRole);
-                 if (typeof setRole === 'function') {
-                    setRole(null); // Reset context demo role if invalid selection
-                 }
-                setSelectedRole(null); // Reset local state
-            }
+        // Allow setting the role via dropdown, context handles whether it's demo or ignored
+        if (validRole && ['student', 'professor', 'admin'].includes(validRole)) {
+             console.log("Role selected in dropdown:", validRole);
+             if (typeof setRole === 'function') {
+                // setRole now handles logic: sets demoRole if logged out, otherwise does nothing/logs warning
+                setRole(validRole);
+             } else {
+                 console.error("setRole is not available or not a function in AuthContext.");
+                 toast({
+                    title: "Error",
+                    description: "Could not change demo role.",
+                    variant: "destructive",
+                 });
+             }
+            // Update local state immediately to reflect change in dropdown
+            // (Context useEffect will sync it back if the change wasn't allowed)
+            setSelectedRole(validRole);
         } else {
-            console.log("Dropdown change ignored: User is logged in. Role is determined by user data.");
+            console.warn("Invalid role selected:", newRole);
+             if (typeof setRole === 'function') {
+                setRole(null); // Reset context demo role if invalid selection
+             }
+            setSelectedRole(null); // Reset local state
+        }
+
+        // Provide feedback if user tries to change role while logged in (context handles this internally, but UI feedback is good)
+        if (user) {
             toast({
                 title: "Role Locked",
-                description: "Cannot change role via dropdown while logged in.",
+                description: "Cannot change role via dropdown while logged in. Log out to switch demo roles.",
             });
-            // Ensure dropdown visually reverts to the actual role if user tries to change it
-            setSelectedRole(role);
+            // Visually revert the dropdown if the user is logged in
+             setSelectedRole(user.role ?? null);
         }
     };
 
@@ -78,7 +81,7 @@ export default function DashboardHomePage() { // Renamed component
 
   const renderDashboardContent = () => {
     console.log("Rendering dashboard for effective role:", role); // Render based on effective role from context
-    switch (role) { // Use role from useAuth
+    switch (role) { // Use role from useAuth (which is user.role or demoRole)
       case 'student':
         return <StudentDashboard />;
       case 'professor':
@@ -91,14 +94,12 @@ export default function DashboardHomePage() { // Renamed component
             <CardHeader>
               <CardTitle>Select Your Role</CardTitle>
                <CardDescription>
-                 {/* Updated message for when user exists but role is unknown */}
-                 {user ? "Your role could not be determined." : "Please choose a demo role from the dropdown above to view the corresponding dashboard."}
+                 Please choose a demo role from the dropdown above to view the corresponding dashboard.
                </CardDescription>
             </CardHeader>
             <CardContent>
               <p>
-                {/* Updated message for when user exists but role is unknown */}
-                {user ? "Your account role might be missing or invalid." : "Use the role selector above to explore different dashboard views in this demo application."}
+                Use the role selector above to explore different dashboard views in this demo application.
               </p>
             </CardContent>
           </Card>
@@ -116,17 +117,19 @@ export default function DashboardHomePage() { // Renamed component
                   {user ? "Your Role" : "Demo Role Selector"}
                 </CardTitle>
                 <CardDescription>
-                   {/* Use the role determined by context */}
-                   {user ? `You are logged in as a ${role || 'user with undetermined role'}.` : "Switch between dashboard views for demonstration purposes."}
+                   {/* Use the effective role from context */}
+                   {user
+                    ? `You are logged in as a ${user.role || 'user with undetermined role'}. Log out to switch demo roles.`
+                    : `Currently viewing the ${role || 'default'} dashboard. Switch roles below.`}
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
                  <div className="flex items-center space-x-2 flex-shrink-0">
                     <Label htmlFor="role-select" className="text-base font-medium text-foreground">Select Role:</Label>
                     <Select
-                        value={selectedRole ?? ''} // Ensure dropdown reflects local state
+                        value={selectedRole ?? ''} // Ensure dropdown reflects local state (synced from context's effective role)
                         onValueChange={handleRoleChange}
-                        disabled={!!user} // Disable dropdown if user is logged in
+                        disabled={!!user} // Disable dropdown only if user is logged in
                     >
                         <SelectTrigger id="role-select" className="w-[180px] bg-background shadow-inner">
                             <SelectValue placeholder="Select role" />

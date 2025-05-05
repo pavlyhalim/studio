@@ -13,13 +13,13 @@ export const useAuth = () => {
   }
   // Explicitly return all fields from the context for clarity and type safety
   return {
-    user: context.user, // Now contains basic user info { id, email, name, role }
-    // sampleUserId is removed
+    user: context.user, // Contains basic user info { id, email, name, role } or null
+    userId: context.userId, // User's ID or null
     loading: context.loading,
     signInWithEmailPassword: context.signInWithEmailPassword, // Returns boolean
     signUpWithEmailPassword: context.signUpWithEmailPassword, // Returns boolean
     signOut: context.signOut,
-    role: context.role,
-    // setRole is removed
+    role: context.role, // Effective role (user's role or demo role if logged out)
+    setRole: context.setRole, // Function to set the demo role (only works if logged out)
   };
 };
