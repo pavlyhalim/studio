@@ -134,7 +134,7 @@ export const initialSampleCourses: Course[] = [
   },
 ];
 
-export const initialSampleEnrollments: Enrollment[] = [
+export let initialSampleEnrollments: Enrollment[] = [
     { studentId: 'student-1', courseId: 'course101', enrolledDate: new Date('2024-01-15') },
     { studentId: 'student-1', courseId: 'course303', enrolledDate: new Date('2024-01-15') },
     { studentId: 'student-2', courseId: 'course202', enrolledDate: new Date('2024-01-20') },
@@ -169,6 +169,7 @@ export const initialSampleUploadedFiles: UploadedFile[] = [
     { id: 'file3', courseId: 'course202', professorId: 'professor-2', fileName: 'Astrobiology_ReadingList.pdf', fileType: 'application/pdf', uploadDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 80 },
     { id: 'file4', courseId: 'course303', professorId: 'professor-1', fileName: 'MutantEthics_CaseStudies.docx', fileType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', uploadDate: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 45 },
     { id: 'file5', courseId: 'course101', professorId: 'professor-1', fileName: 'Intro_To_Quantum_Video.mp4', fileType: 'video/mp4', uploadDate: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 25600 }, // Example video
+    { id: 'file6', courseId: 'course202', professorId: 'professor-2', fileName: 'Lecture_DrakeEquation.mp4', fileType: 'video/mp4', uploadDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000), url: '#', sizeKB: 31500 }, // Another video
 ];
 
 
@@ -216,13 +217,8 @@ export const getUpcomingAssignmentsForStudent = (studentId: string, daysAhead: n
     ).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 }
 
-// Get recent grades for a specific student
-export const getRecentGradesForStudent = (studentId: string, limit: number = 5): Grade[] => {
-    return initialSampleGrades
-        .filter(grade => grade.studentId === studentId)
-        .sort((a, b) => b.gradedDate.getTime() - a.gradedDate.getTime())
-        .slice(0, limit);
-}
+// Get recent grades for a specific student (now defined within components or specific pages)
+// export const getRecentGradesForStudent = (studentId: string, limit: number = 5): Grade[] => { ... }
 
 // Get announcements for courses a student is enrolled in
 export const getAnnouncementsForStudent = (studentId: string, limit: number = 5): Announcement[] => {
@@ -246,6 +242,15 @@ export const getFilesByCourse = (courseId: string): UploadedFile[] => {
     return initialSampleUploadedFiles.filter(file => file.courseId === courseId)
         .sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime());
 }
+
+// Get files for courses a student is enrolled in
+export const getFilesForStudent = (studentId: string): UploadedFile[] => {
+    const enrolledCourseIds = getCoursesByStudent(studentId).map(c => c.id);
+    return initialSampleUploadedFiles
+        .filter(file => enrolledCourseIds.includes(file.courseId))
+        .sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime());
+};
+
 
 // Get files uploaded by a specific professor
 export const getFilesByProfessor = (professorId: string): UploadedFile[] => {
@@ -314,8 +319,18 @@ export const createSampleEnrollment = (studentId: string, courseId: string): Enr
     };
 };
 
-// NOTE: In a real application, these 'create' functions would be replaced by API calls
-// to a backend service that interacts with a database and returns the created record.
+// --- Update Functions (Simulated, Modify Local State/Demo Data) ---
+// These functions directly modify the exported 'let' arrays for demo purposes.
+// Avoid this pattern in real applications; use APIs and proper state management.
+
+// Example: Function to update enrollments (used by handleEnroll)
+// export const updateSampleEnrollments = (newEnrollment: Enrollment) => {
+//   initialSampleEnrollments = [...initialSampleEnrollments, newEnrollment];
+// };
+// Removed updateSampleEnrollments as local state handles it better in the component.
+
+// NOTE: In a real application, these 'create' and 'update' functions would be replaced by API calls
+// to a backend service that interacts with a database and returns the created/updated record.
 // Components would then use the returned data to update their local state.
 // The mockUsersDb map provides a *basic* simulation of a persistent store for the lifetime
 // of the server instance, allowing signup/login to "work" during a single session.

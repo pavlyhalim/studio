@@ -54,7 +54,7 @@ import {
 type SimpleUser = Omit<User, 'passwordHash'>;
 
 export function ProfessorDashboard() {
-  const { userId } = useAuth(); // Get sample professor userId from context
+  const { userId, user } = useAuth(); // Get user object as well
   const { toast } = useToast();
 
   // AI Review State
@@ -88,10 +88,10 @@ export function ProfessorDashboard() {
   // Selected Course for Management View
   const [selectedCourseManageId, setSelectedCourseManageId] = useState<string | null>(null);
 
-  // Memoize professor's name
-  const professorName = useMemo(() => {
-    return allUsers.find(u => u.id === userId)?.name ?? 'Professor'; // Use allUsers state
-  }, [userId, allUsers]);
+   // Memoize professor's name from user object if available
+   const professorName = useMemo(() => {
+     return user?.name ?? 'Professor'; // Use logged-in user's name or default
+   }, [user]);
 
    // Effect to initialize professor's data and all users
    useEffect(() => {
@@ -205,24 +205,31 @@ export function ProfessorDashboard() {
     setUploadError(null);
     setUploadSuccess(null);
 
-    // Simulate upload process
+    // **Simulate upload process**
+    // In a real app, this would involve sending the file to a backend/storage service.
     console.log(`Simulating upload of ${selectedFile.name} to course ${targetCourseId}...`);
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    const success = Math.random() > 0.1; // High success rate for demo
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
+    const success = Math.random() > 0.1; // Simulate success/failure
 
     if (success) {
-        // Simulate creating file data (doesn't mutate global state)
+        // Simulate creating file data object (doesn't mutate global state)
+        // In a real app, the backend would return this data after successful upload.
         const newFileData = createSampleFile({
             courseId: targetCourseId,
             professorId: userId,
             fileName: selectedFile.name,
             fileType: selectedFile.type || 'unknown',
-            url: URL.createObjectURL(selectedFile), // Temporary local URL for demo preview/download
+            // Use a temporary local URL for demo preview/download. Real apps need actual storage URLs.
+            url: URL.createObjectURL(selectedFile),
             sizeKB: Math.round(selectedFile.size / 1024),
         });
 
-        // Update local state immutably
+        // Update local state immutably, adding the new file and re-sorting
         setUploadedFiles(prev => [newFileData, ...prev].sort((a, b) => b.uploadDate.getTime() - a.uploadDate.getTime()));
+
+        // Update sample data array directly for demo persistence during session
+        // NOTE: Remove this direct mutation in a production app.
+        initialSampleUploadedFiles.push(newFileData); // Add to the 'source' array for demo
 
         const courseTitle = professorCourses.find(c => c.id === targetCourseId)?.title ?? 'the course';
         setUploadSuccess(`File "${selectedFile.name}" uploaded to course "${courseTitle}" (simulated).`);
@@ -258,6 +265,7 @@ export function ProfessorDashboard() {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // Simulate creating announcement data (doesn't mutate global state)
+    // In a real app, the backend would return this data.
     const newAnnouncementData = createSampleAnnouncement({
         courseId: targetCourseId,
         title: announcementTitle,
@@ -267,6 +275,10 @@ export function ProfessorDashboard() {
 
     // Update local state immutably and sort
     setAnnouncements(prev => [newAnnouncementData, ...prev].sort((a,b) => b.postedDate.getTime() - a.postedDate.getTime()));
+
+    // Update sample data array directly for demo persistence
+    // NOTE: Remove this direct mutation in production.
+    initialSampleAnnouncements.push(newAnnouncementData); // Add to the 'source' array for demo
 
     const courseTitle = professorCourses.find(c=>c.id === targetCourseId)?.title ?? 'the course';
     toast({ title: "Announcement Posted", description: `Posted "${announcementTitle}" to ${courseTitle}`});
@@ -290,16 +302,24 @@ export function ProfessorDashboard() {
         const fileToDelete = uploadedFiles.find(f => f.id === fileId);
         if (!fileToDelete) return;
 
-        // Revoke temporary URL if it exists
+        // **Simulate backend deletion**: Remove from the source array for demo persistence
+        // In a real app, this would be an API call.
+        const fileIndex = initialSampleUploadedFiles.findIndex(f => f.id === fileId);
+        if (fileIndex > -1) {
+            initialSampleUploadedFiles.splice(fileIndex, 1);
+        } else {
+            console.warn(`File ${fileId} not found in initialSampleUploadedFiles for deletion.`);
+        }
+
+        // Revoke temporary URL if it exists to prevent memory leaks
         if (fileToDelete.url.startsWith('blob:')) {
             URL.revokeObjectURL(fileToDelete.url);
         }
 
         // Update local state
-        const updatedFiles = uploadedFiles.filter(f => f.id !== fileId);
-        setUploadedFiles(updatedFiles);
+        setUploadedFiles(prev => prev.filter(f => f.id !== fileId));
 
-        toast({ title: "File Deleted", description: `File "${fileToDelete.fileName}" removed (simulated).` });
+        toast({ title: "File Deleted", description: `File "${fileToDelete.fileName}" removed.` });
    };
 
    // Simulate deleting an announcement
@@ -308,10 +328,19 @@ export function ProfessorDashboard() {
        const announcementToDelete = announcements.find(a => a.id === announcementId);
        if (!announcementToDelete) return;
 
-       const updatedAnnouncements = announcements.filter(a => a.id !== announcementId);
-       setAnnouncements(updatedAnnouncements);
+        // **Simulate backend deletion**: Remove from the source array for demo persistence
+        // In a real app, this would be an API call.
+        const announcementIndex = initialSampleAnnouncements.findIndex(a => a.id === announcementId);
+        if (announcementIndex > -1) {
+            initialSampleAnnouncements.splice(announcementIndex, 1);
+        } else {
+             console.warn(`Announcement ${announcementId} not found in initialSampleAnnouncements for deletion.`);
+        }
 
-       toast({ title: "Announcement Deleted", description: `Announcement "${announcementToDelete.title}" removed (simulated).` });
+       // Update local state
+       setAnnouncements(prev => prev.filter(a => a.id !== announcementId));
+
+       toast({ title: "Announcement Deleted", description: `Announcement "${announcementToDelete.title}" removed.` });
    };
 
 
@@ -325,19 +354,19 @@ export function ProfessorDashboard() {
       <p className="text-lg text-muted-foreground">Welcome, {professorName}!</p>
 
       {/* My Courses Overview Section */}
-      <Card>
+      <Card className="shadow-md hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle>My Courses</CardTitle>
           <CardDescription>Overview of the courses you are teaching. Click 'Manage' to see details below.</CardDescription>
         </CardHeader>
         <CardContent>
           {professorCourses.length > 0 ? (
-            <ScrollArea className="h-48">
+            <ScrollArea className="h-48 pr-3"> {/* Added padding */}
               <ul className="space-y-3">
                 {professorCourses.map(course => (
                   <li key={course.id} className={`p-3 border rounded-md shadow-sm flex justify-between items-center transition-colors ${selectedCourseManageId === course.id ? 'bg-accent/20 border-accent' : 'bg-secondary/10 hover:bg-secondary/20'}`}>
                     <div>
-                        <h3 className="font-semibold">{course.title}</h3>
+                        <h3 className="font-semibold text-primary">{course.title}</h3>
                         <p className="text-sm text-muted-foreground">{course.description}</p>
                     </div>
                      <Button
@@ -354,155 +383,79 @@ export function ProfessorDashboard() {
               </ul>
             </ScrollArea>
           ) : (
-            <p className="text-muted-foreground">You are not assigned to any courses.</p>
+            <p className="text-muted-foreground text-center py-4">You are not assigned to any courses.</p>
           )}
         </CardContent>
       </Card>
 
        {/* Detailed Course Management Section - Only shown when a course is selected */}
         {selectedCourseForManagement ? (
-            <Card id="course-management-section" className="border-accent shadow-md">
-                <CardHeader className="bg-accent/10 rounded-t-lg">
-                    <CardTitle>Manage Course: {selectedCourseForManagement.title}</CardTitle>
+            <Card id="course-management-section" className="border-accent shadow-lg"> {/* Enhanced shadow */}
+                <CardHeader className="bg-accent/10 rounded-t-lg border-b border-accent/20">
+                    <CardTitle className="text-xl text-accent">{selectedCourseForManagement.title}</CardTitle>
                      <CardDescription>Manage announcements, files, assignments, and grades for this course.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 pt-6">
-                     {/* Announcements for Selected Course */}
-                    <Card className="shadow-sm">
-                        <CardHeader>
-                            <CardTitle className="text-lg">Announcements</CardTitle> {/* Simplified title */}
-                        </CardHeader>
-                        <CardContent>
-                            <form onSubmit={handlePostAnnouncement} className="space-y-3 mb-4 p-3 border rounded-md bg-secondary/10">
-                                 <Input
-                                    value={announcementTitle}
-                                    onChange={(e) => setAnnouncementTitle(e.target.value)}
-                                    placeholder="Announcement Title"
-                                    required
-                                    aria-label="New announcement title"
-                                 />
-                                 <Textarea
-                                     value={announcementContent}
-                                     onChange={(e) => setAnnouncementContent(e.target.value)}
-                                     placeholder="Announcement Content..."
-                                     required
-                                     rows={3}
-                                     aria-label="New announcement content"
-                                 />
-                                 <Button type="submit" disabled={isPostingAnnouncement} className="w-full bg-accent hover:bg-accent/90">
-                                     {isPostingAnnouncement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-                                     Post Announcement
-                                 </Button>
-                            </form>
-                             <ScrollArea className="h-40 border rounded-md p-2">
-                                {/* Filter announcements from the local state */}
-                                {announcements.filter(a => a.courseId === selectedCourseManageId).length > 0 ? (
-                                    <ul className="space-y-2">
-                                        {announcements.filter(a => a.courseId === selectedCourseManageId).map(ann => (
-                                            <li key={ann.id} className="text-sm p-2 bg-background rounded border border-border flex justify-between items-start group">
-                                               <div>
-                                                    <p className="font-semibold">{ann.title}</p>
-                                                    <p className="text-muted-foreground whitespace-pre-wrap">{ann.content}</p>
-                                                    <p className="text-xs text-muted-foreground/70 mt-1">
-                                                        Posted: {formatDistanceToNow(ann.postedDate, { addSuffix: true })}
-                                                    </p>
-                                                </div>
-                                                {/* Delete Announcement Button */}
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80 h-7 w-7 ml-2 flex-shrink-0" aria-label={`Delete announcement ${ann.title}`}>
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                      <AlertDialogHeader>
-                                                        <AlertDialogTitle>Delete Announcement?</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                          Are you sure you want to delete the announcement "{ann.title}"? This action cannot be undone.
-                                                        </AlertDialogDescription>
-                                                      </AlertDialogHeader>
-                                                      <AlertDialogFooter>
-                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                        <AlertDialogAction
-                                                            onClick={() => handleDeleteAnnouncement(ann.id)}
-                                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                                        >
-                                                            Delete
-                                                        </AlertDialogAction>
-                                                      </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                  </AlertDialog>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground text-center py-4">No announcements for this course yet.</p>
-                                )}
-                            </ScrollArea>
-                        </CardContent>
-                    </Card>
-
-                    {/* Files for Selected Course */}
-                    <Card className="shadow-sm">
-                        <CardHeader>
-                            <CardTitle className="text-lg">Files</CardTitle> {/* Simplified title */}
-                        </CardHeader>
-                        <CardContent>
-                             <div className="mb-4 p-3 border rounded-md bg-secondary/10 space-y-3">
-                                <Label htmlFor="file-upload-manage">Upload New File</Label> {/* Simplified label */}
-                                <Input
-                                    id="file-upload-manage" // Unique ID
-                                    type="file"
-                                    onChange={handleFileChange}
-                                    disabled={isUploading}
-                                    className="file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
-                                    aria-label="Upload new file"
-                                />
-                                {selectedFile && <p className="text-sm text-muted-foreground">Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)</p>}
-                                {uploadError && <Alert variant="destructive" className="text-xs"><AlertDescription>{uploadError}</AlertDescription></Alert>}
-                                {uploadSuccess && <Alert variant="success" className="text-xs"><AlertDescription>{uploadSuccess}</AlertDescription></Alert>}
-                                <Button onClick={handleFileUpload} disabled={isUploading || !selectedFile} className="w-full bg-accent hover:bg-accent/90">
-                                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                                    {isUploading ? 'Uploading...' : 'Upload File'}
-                                </Button>
-                            </div>
-
-                             <ScrollArea className="h-48 border rounded-md p-2">
-                                {/* Filter files from local state */}
-                                {uploadedFiles.filter(f => f.courseId === selectedCourseManageId).length > 0 ? (
-                                    <ul className="space-y-2">
-                                        {uploadedFiles.filter(f => f.courseId === selectedCourseManageId).map(file => (
-                                            <li key={file.id} className="flex items-center justify-between p-2 bg-background rounded border border-border text-sm group">
-                                                <div className="flex items-center gap-2 overflow-hidden">
-                                                     {file.fileType.startsWith('video/') ? <Video className="h-4 w-4 text-muted-foreground flex-shrink-0"/> : <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0"/>}
-                                                    <span className="truncate flex-grow" title={file.fileName}>{file.fileName}</span>
-                                                    <Badge variant="outline" className="text-xs flex-shrink-0">{file.sizeKB} KB</Badge>
-                                                </div>
-                                                <div className="flex gap-1 flex-shrink-0">
-                                                    {/* Preview/Download - Use 'a' tag for direct interaction */}
-                                                    <Button variant="outline" size="sm" asChild disabled={!file.url || file.url === '#'} aria-label={`${file.fileType.startsWith('video/') ? 'Play' : 'Download'} file ${file.fileName}`}>
-                                                         <a href={file.url} target="_blank" rel="noopener noreferrer" download={!file.fileType.startsWith('video/') ? file.fileName : undefined}>
-                                                             {file.fileType.startsWith('video/') ? 'Play' : 'Download'}
-                                                         </a>
-                                                    </Button>
-                                                    {/* Delete File Button */}
-                                                     <AlertDialog>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+                     {/* Left Column: Announcements & Files */}
+                     <div className="space-y-6">
+                         {/* Announcements for Selected Course */}
+                        <Card className="shadow-sm border border-border/50">
+                            <CardHeader className="bg-secondary/10">
+                                <CardTitle className="text-lg font-semibold">Announcements</CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <form onSubmit={handlePostAnnouncement} className="space-y-3 mb-4 p-3 border rounded-md bg-background">
+                                     <Input
+                                        value={announcementTitle}
+                                        onChange={(e) => setAnnouncementTitle(e.target.value)}
+                                        placeholder="Announcement Title"
+                                        required
+                                        aria-label="New announcement title"
+                                     />
+                                     <Textarea
+                                         value={announcementContent}
+                                         onChange={(e) => setAnnouncementContent(e.target.value)}
+                                         placeholder="Announcement Content..."
+                                         required
+                                         rows={3}
+                                         aria-label="New announcement content"
+                                     />
+                                     <Button type="submit" disabled={isPostingAnnouncement} className="w-full bg-accent hover:bg-accent/90">
+                                         {isPostingAnnouncement ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                                         Post Announcement
+                                     </Button>
+                                </form>
+                                 <ScrollArea className="h-40 border rounded-md p-2 bg-secondary/5">
+                                    {/* Filter announcements from the local state */}
+                                    {announcements.filter(a => a.courseId === selectedCourseManageId).length > 0 ? (
+                                        <ul className="space-y-2">
+                                            {announcements.filter(a => a.courseId === selectedCourseManageId).map(ann => (
+                                                <li key={ann.id} className="text-sm p-3 bg-background rounded border border-border flex justify-between items-start group shadow-sm">
+                                                   <div className="flex-grow overflow-hidden">
+                                                        <p className="font-semibold text-primary truncate" title={ann.title}>{ann.title}</p>
+                                                        <p className="text-xs text-muted-foreground/70 mt-1">
+                                                            Posted: {formatDistanceToNow(ann.postedDate, { addSuffix: true })}
+                                                        </p>
+                                                        <p className="text-muted-foreground whitespace-pre-wrap mt-1">{ann.content}</p>
+                                                    </div>
+                                                    {/* Delete Announcement Button */}
+                                                    <AlertDialog>
                                                         <AlertDialogTrigger asChild>
-                                                            <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete file ${file.fileName}`}>
+                                                            <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80 h-7 w-7 ml-2 flex-shrink-0" aria-label={`Delete announcement ${ann.title}`}>
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
                                                         </AlertDialogTrigger>
                                                         <AlertDialogContent>
                                                           <AlertDialogHeader>
-                                                            <AlertDialogTitle>Delete File?</AlertDialogTitle>
+                                                            <AlertDialogTitle>Delete Announcement?</AlertDialogTitle>
                                                             <AlertDialogDescription>
-                                                              Are you sure you want to delete the file "{file.fileName}"? This action cannot be undone.
+                                                              Are you sure you want to delete the announcement "{ann.title}"? This action cannot be undone.
                                                             </AlertDialogDescription>
                                                           </AlertDialogHeader>
                                                           <AlertDialogFooter>
                                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
                                                             <AlertDialogAction
-                                                                onClick={() => handleDeleteFile(file.id)}
+                                                                onClick={() => handleDeleteAnnouncement(ann.id)}
                                                                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                                             >
                                                                 Delete
@@ -510,98 +463,181 @@ export function ProfessorDashboard() {
                                                           </AlertDialogFooter>
                                                         </AlertDialogContent>
                                                       </AlertDialog>
-                                                </div>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                     <p className="text-sm text-muted-foreground text-center py-4">No files uploaded for this course yet.</p>
-                                )}
-                            </ScrollArea>
-                        </CardContent>
-                    </Card>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center py-4">No announcements for this course yet.</p>
+                                    )}
+                                </ScrollArea>
+                            </CardContent>
+                        </Card>
 
-                     {/* Assignments & Grades Section */}
-                     <Card className="shadow-sm">
-                        <CardHeader>
-                            <CardTitle className="text-lg">Assignments & Grades</CardTitle> {/* Simplified title */}
-                            <CardDescription>View assignments and student grades for this course.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                           {/* TODO: Add Assignment Creation Form/Dialog */}
-                           <Button variant="outline" className="mb-4 w-full" disabled>
-                                <PlusCircle className="mr-2 h-4 w-4"/> Create New Assignment (Not Implemented)
-                           </Button>
+                        {/* Files for Selected Course */}
+                        <Card className="shadow-sm border border-border/50">
+                            <CardHeader className="bg-secondary/10">
+                                <CardTitle className="text-lg font-semibold">Files</CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                 <div className="mb-4 p-3 border rounded-md bg-background space-y-3">
+                                    <Label htmlFor="file-upload-manage" className="font-medium">Upload New File</Label>
+                                    <Input
+                                        id="file-upload-manage" // Unique ID
+                                        type="file"
+                                        onChange={handleFileChange}
+                                        disabled={isUploading}
+                                        className="file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                                        aria-label="Upload new file"
+                                    />
+                                    {selectedFile && <p className="text-sm text-muted-foreground">Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(2)} KB)</p>}
+                                    {uploadError && <Alert variant="destructive" className="text-xs"><AlertDescription>{uploadError}</AlertDescription></Alert>}
+                                    {uploadSuccess && <Alert variant="success" className="text-xs"><AlertDescription>{uploadSuccess}</AlertDescription></Alert>}
+                                    <Button onClick={handleFileUpload} disabled={isUploading || !selectedFile} className="w-full bg-accent hover:bg-accent/90">
+                                        {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                                        {isUploading ? 'Uploading...' : 'Upload File'}
+                                    </Button>
+                                </div>
 
-                            <h4 className="font-semibold mb-2">Current Assignments ({assignments.length})</h4>
-                            <ScrollArea className="h-40 border rounded-md p-2 mb-6">
-                                {assignments.length > 0 ? (
-                                    <ul className="space-y-2">
-                                        {assignments.map(assign => (
-                                            <li key={assign.id} className="text-sm p-2 bg-background rounded border border-border">
-                                                <div className="flex justify-between items-start">
-                                                     <div>
-                                                        <p className="font-medium">{assign.title}</p>
-                                                        <p className="text-xs text-red-600 dark:text-red-400">Due: {format(assign.dueDate, 'PP')} ({formatDistanceToNow(assign.dueDate, { addSuffix: true })})</p>
+                                 <ScrollArea className="h-48 border rounded-md p-2 bg-secondary/5">
+                                    {/* Filter files from local state */}
+                                    {uploadedFiles.filter(f => f.courseId === selectedCourseManageId).length > 0 ? (
+                                        <ul className="space-y-2">
+                                            {uploadedFiles.filter(f => f.courseId === selectedCourseManageId).map(file => (
+                                                <li key={file.id} className="flex items-center justify-between p-3 bg-background rounded border border-border text-sm group shadow-sm">
+                                                    <div className="flex items-center gap-3 overflow-hidden">
+                                                         {file.fileType.startsWith('video/') ? <Video className="h-5 w-5 text-muted-foreground flex-shrink-0"/> : <FileText className="h-5 w-5 text-muted-foreground flex-shrink-0"/>}
+                                                        <div className="flex-grow overflow-hidden">
+                                                            <p className="font-medium text-primary truncate" title={file.fileName}>{file.fileName}</p>
+                                                            <p className="text-xs text-muted-foreground">Uploaded: {format(file.uploadDate, 'PP')}</p>
+                                                        </div>
                                                     </div>
-                                                    {/* TODO: Implement view/edit assignment */}
-                                                    <Button variant="ghost" size="sm" disabled>View/Edit</Button>
-                                                </div>
-                                                 <p className="text-xs text-muted-foreground mt-1">{assign.description}</p>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground text-center py-4">No assignments created for this course yet.</p>
-                                )}
-                            </ScrollArea>
+                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                        <Badge variant="outline" className="text-xs">{file.sizeKB} KB</Badge>
+                                                        {/* Preview/Download - Use 'a' tag */}
+                                                        <Button variant="outline" size="sm" asChild disabled={!file.url || file.url === '#'} aria-label={`${file.fileType.startsWith('video/') ? 'Play' : 'Download'} file ${file.fileName}`}>
+                                                             <a href={file.url} target="_blank" rel="noopener noreferrer" download={!file.fileType.startsWith('video/') ? file.fileName : undefined}>
+                                                                 <Download className="mr-1 h-3 w-3" /> {file.fileType.startsWith('video/') ? 'Play' : 'Download'}
+                                                             </a>
+                                                        </Button>
+                                                        {/* Delete File Button */}
+                                                         <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive/80 h-8 w-8" aria-label={`Delete file ${file.fileName}`}>
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                              <AlertDialogHeader>
+                                                                <AlertDialogTitle>Delete File?</AlertDialogTitle>
+                                                                <AlertDialogDescription>
+                                                                  Are you sure you want to delete the file "{file.fileName}"? This action cannot be undone.
+                                                                </AlertDialogDescription>
+                                                              </AlertDialogHeader>
+                                                              <AlertDialogFooter>
+                                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                <AlertDialogAction
+                                                                    onClick={() => handleDeleteFile(file.id)}
+                                                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                                                >
+                                                                    Delete
+                                                                </AlertDialogAction>
+                                                              </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                          </AlertDialog>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                         <p className="text-sm text-muted-foreground text-center py-4">No files uploaded for this course yet.</p>
+                                    )}
+                                </ScrollArea>
+                            </CardContent>
+                        </Card>
+                     </div>
 
-                            <h4 className="font-semibold mb-2">Student Grades ({grades.length})</h4>
-                            <ScrollArea className="h-60 border rounded-md">
-                                {grades.length > 0 ? (
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Student</TableHead>
-                                                <TableHead>Assignment</TableHead>
-                                                <TableHead className="text-right">Score</TableHead>
-                                                <TableHead className="text-right">Actions</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {grades.map(grade => {
-                                                // Find student and assignment from respective initial data arrays
-                                                const student = allUsers.find(s => s.id === grade.studentId); // Use allUsers state
-                                                const assignment = initialSampleAssignments.find(a => a.id === grade.assignmentId);
-                                                const percentage = grade.maxScore > 0 ? Math.round((grade.score / grade.maxScore) * 100) : 0;
-                                                const scoreValid = grade.maxScore > 0;
-                                                // Use explicit colors for clarity
-                                                const scoreColor = scoreValid ? (percentage >= 80 ? "text-green-600 dark:text-green-400" : percentage >= 60 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400") : "text-muted-foreground";
+                      {/* Right Column: Assignments & Grades */}
+                     <div className="space-y-6">
+                         {/* Assignments & Grades Section */}
+                         <Card className="shadow-sm border border-border/50">
+                            <CardHeader className="bg-secondary/10">
+                                <CardTitle className="text-lg font-semibold">Assignments & Grades</CardTitle>
+                                <CardDescription>View assignments and student grades for this course.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                               {/* TODO: Add Assignment Creation Form/Dialog */}
+                               <Button variant="outline" className="mb-4 w-full border-dashed border-accent text-accent hover:bg-accent/10" disabled>
+                                    <PlusCircle className="mr-2 h-4 w-4"/> Create New Assignment (Feature Coming Soon)
+                               </Button>
 
-                                                return (
-                                                    <TableRow key={grade.id}>
-                                                        <TableCell>{student?.name ?? 'Unknown Student'}</TableCell>
-                                                        <TableCell className="truncate max-w-[150px] md:max-w-[200px]" title={assignment?.title ?? 'Unknown Assignment'}>{assignment?.title ?? 'Unknown Assignment'}</TableCell>
-                                                        <TableCell className={`text-right font-medium ${scoreColor}`}>
-                                                            {scoreValid ? `${grade.score}/${grade.maxScore} (${percentage}%)` : 'N/A'}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                             {/* TODO: Implement Edit Grade Modal/Inline Edit */}
-                                                            <Button variant="outline" size="sm" disabled>
-                                                                <Edit className="mr-1 h-3 w-3" /> Edit
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground text-center p-4">No grades recorded for this course yet.</p>
-                                )}
-                             </ScrollArea>
-                        </CardContent>
-                    </Card>
+                                <h4 className="font-semibold mb-2">Current Assignments ({assignments.length})</h4>
+                                <ScrollArea className="h-40 border rounded-md p-2 mb-6 bg-secondary/5">
+                                    {assignments.length > 0 ? (
+                                        <ul className="space-y-2">
+                                            {assignments.map(assign => (
+                                                <li key={assign.id} className="text-sm p-3 bg-background rounded border border-border shadow-sm">
+                                                    <div className="flex justify-between items-start">
+                                                         <div className="flex-grow overflow-hidden">
+                                                            <p className="font-medium text-primary truncate" title={assign.title}>{assign.title}</p>
+                                                            <p className="text-xs text-destructive/90">Due: {format(assign.dueDate, 'PPp')} ({formatDistanceToNow(assign.dueDate, { addSuffix: true })})</p>
+                                                            <p className="text-xs text-muted-foreground mt-1 truncate" title={assign.description}>{assign.description}</p>
+                                                        </div>
+                                                        {/* TODO: Implement view/edit assignment */}
+                                                        <Button variant="ghost" size="sm" disabled className="ml-2 flex-shrink-0">View/Edit</Button>
+                                                    </div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center py-4">No assignments created yet.</p>
+                                    )}
+                                </ScrollArea>
+
+                                <h4 className="font-semibold mb-2">Student Grades ({grades.length})</h4>
+                                <ScrollArea className="h-60 border rounded-md bg-secondary/5">
+                                    {grades.length > 0 ? (
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Student</TableHead>
+                                                    <TableHead>Assignment</TableHead>
+                                                    <TableHead className="text-right">Score</TableHead>
+                                                    <TableHead className="text-right">Actions</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {grades.map(grade => {
+                                                    const student = allUsers.find(s => s.id === grade.studentId); // Use allUsers state
+                                                    const assignment = assignments.find(a => a.id === grade.assignmentId); // Find from current course assignments
+                                                    const percentage = grade.maxScore > 0 ? Math.round((grade.score / grade.maxScore) * 100) : 0;
+                                                    const scoreValid = grade.maxScore > 0;
+                                                    const scoreColor = scoreValid ? (percentage >= 80 ? "text-green-600 dark:text-green-400" : percentage >= 60 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400") : "text-muted-foreground";
+
+                                                    return (
+                                                        <TableRow key={grade.id} className="hover:bg-muted/20">
+                                                            <TableCell className="font-medium text-primary/90">{student?.name ?? 'Unknown'}</TableCell>
+                                                            <TableCell className="truncate max-w-[150px] md:max-w-[200px]" title={assignment?.title ?? 'Unknown'}>{assignment?.title ?? 'Unknown'}</TableCell>
+                                                            <TableCell className={`text-right font-medium ${scoreColor}`}>
+                                                                {scoreValid ? `${grade.score}/${grade.maxScore} (${percentage}%)` : 'N/A'}
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                 {/* TODO: Implement Edit Grade Modal/Inline Edit */}
+                                                                <Button variant="outline" size="sm" disabled>
+                                                                    <Edit className="mr-1 h-3 w-3" /> Edit
+                                                                </Button>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center p-4">No grades recorded yet.</p>
+                                    )}
+                                 </ScrollArea>
+                            </CardContent>
+                        </Card>
+                    </div>
 
                 </CardContent>
                  <CardFooter className="border-t p-4 bg-secondary/10 rounded-b-lg">
@@ -610,7 +646,7 @@ export function ProfessorDashboard() {
             </Card>
         ) : professorCourses.length > 0 ? (
              // Show message if professor has courses but hasn't selected one to manage
-             <Card className="border-dashed border-primary/50">
+             <Card className="border-dashed border-primary/50 shadow-sm">
                 <CardHeader>
                     <CardTitle>Select a Course to Manage</CardTitle>
                 </CardHeader>
@@ -622,7 +658,7 @@ export function ProfessorDashboard() {
 
 
       {/* AI Response Review Section */}
-      <Card>
+      <Card className="shadow-md hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle>Review AI Responses</CardTitle>
           <CardDescription>Analyze the accuracy and relevance of AI answers using course context.</CardDescription>
@@ -677,24 +713,24 @@ export function ProfessorDashboard() {
         </CardContent>
       </Card>
 
-      {/* Other placeholder widgets */}
+      {/* Other widgets - Keep placeholders for complex unimplemented features */}
        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
+            <Card className="shadow-md hover:shadow-lg transition-shadow">
               <CardHeader>
-                <CardTitle>Student Engagement (Placeholder)</CardTitle>
-                 <CardDescription>Track overall student activity and performance.</CardDescription>
+                <CardTitle>Student Engagement</CardTitle>
+                 <CardDescription>Track overall student activity and performance. (Data is simulated)</CardDescription>
               </CardHeader>
               <CardContent>
-                 <div className="flex items-center justify-center text-muted-foreground h-32">
-                    <BarChart2 className="h-8 w-8 mr-2" /> Placeholder for Engagement Chart/Data
+                 <div className="flex items-center justify-center text-muted-foreground h-32 border border-dashed rounded-md">
+                    <BarChart2 className="h-8 w-8 mr-2" /> Simulated Engagement Chart
                 </div>
-                {/* TODO: Display engagement analytics using a chart library */}
+                {/* TODO: Display engagement analytics using a chart library with real or better simulated data */}
               </CardContent>
             </Card>
-             <Card>
+             <Card className="shadow-md hover:shadow-lg transition-shadow">
                 <CardHeader>
-                    <CardTitle>Quick Actions (Placeholder)</CardTitle>
-                     <CardDescription>Common professor tasks.</CardDescription>
+                    <CardTitle>Quick Actions</CardTitle>
+                     <CardDescription>Common professor tasks (Features coming soon).</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col space-y-2">
                      <Button variant="outline" disabled>Grade Submissions</Button>
