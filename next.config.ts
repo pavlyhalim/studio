@@ -21,8 +21,9 @@ const nextConfig: NextConfig = {
     ],
   },
   // Add bcrypt and related modules to serverComponentsExternalPackages
+  // Ensure node-loader is also external if used in server components
   experimental: {
-    serverComponentsExternalPackages: ['bcrypt', 'node-pre-gyp', '@mapbox/node-pre-gyp'],
+    serverComponentsExternalPackages: ['bcrypt', 'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-loader'],
   },
   // Add Webpack config to ignore the problematic file/packages
   webpack: (config, { isServer, webpack }) => {
@@ -34,13 +35,11 @@ const nextConfig: NextConfig = {
       })
     );
 
-    // Specifically ignore the problematic HTML file, trying without context first
-    // This file seems to cause issues with bundlers trying to parse it.
+    // Specifically ignore the problematic HTML file, this seems to be the most reliable way
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /index\.html$/,
-        // Removed contextRegExp to make the ignore rule less specific and more robust
-        // contextRegExp: /node_modules\/@mapbox\/node-pre-gyp\/lib\/util$/,
+        contextRegExp: /@mapbox[\\/]node-pre-gyp[\\/]lib[\\/]util[\\/]nw-pre-gyp$/, // More specific context
       })
     );
 
@@ -48,8 +47,11 @@ const nextConfig: NextConfig = {
     config.module.rules.push({
       test: /\.node$/,
       loader: 'node-loader', // Use loader instead of use for single loader
+      options: {
+        // Optional: You might need to adjust the output path depending on your setup
+        // name: '[name].[ext]',
+      },
     });
-
 
     // Important: return the modified config
     return config;

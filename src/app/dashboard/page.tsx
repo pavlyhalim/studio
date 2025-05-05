@@ -12,16 +12,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/hooks/use-toast';
 
-export default function DashboardHomePage() { // Renamed component
-    // Use updated hook: `user` is now SimpleUser | null
-    // role is the effective role (user's or demo)
-    // setRole now sets the demoRole if logged out
+export default function DashboardHomePage() {
     const { user, loading, role, setRole } = useAuth();
     const { toast } = useToast();
-    // Local state manages the dropdown selection visually
+    // Local state manages the dropdown selection visually, initialized from context's effective role
     const [selectedRole, setSelectedRole] = useState<UserRole>(role);
 
     // Update local dropdown state if the effective role from context changes
+    // This keeps the dropdown in sync if the context changes (e.g., user logs in/out)
     useEffect(() => {
         console.log("DashboardHomePage: Effective role from context changed to:", role);
         setSelectedRole(role);
@@ -31,7 +29,6 @@ export default function DashboardHomePage() { // Renamed component
     // Handle role change from the dropdown selector
     const handleRoleChange = (newRole: string) => {
         const validRole = newRole as UserRole;
-        // Allow setting the role via dropdown, context handles whether it's demo or ignored
         if (validRole && ['student', 'professor', 'admin'].includes(validRole)) {
              console.log("Role selected in dropdown:", validRole);
              if (typeof setRole === 'function') {
@@ -46,7 +43,7 @@ export default function DashboardHomePage() { // Renamed component
                  });
              }
             // Update local state immediately to reflect change in dropdown
-            // (Context useEffect will sync it back if the change wasn't allowed)
+            // The useEffect above will sync it back if the change wasn't allowed by context
             setSelectedRole(validRole);
         } else {
             console.warn("Invalid role selected:", newRole);
@@ -56,23 +53,24 @@ export default function DashboardHomePage() { // Renamed component
             setSelectedRole(null); // Reset local state
         }
 
-        // Provide feedback if user tries to change role while logged in (context handles this internally, but UI feedback is good)
+        // Provide feedback if user tries to change role while logged in
         if (user) {
             toast({
                 title: "Role Locked",
                 description: "Cannot change role via dropdown while logged in. Log out to switch demo roles.",
             });
             // Visually revert the dropdown if the user is logged in
-             setSelectedRole(user.role ?? null);
+            // Use user.role which should be non-null if user exists
+             setSelectedRole(user.role);
         }
     };
 
 
     // Show loading state while checking auth status or fetching user data
+    // This loader is now shown WITHIN the dashboard layout (not full page)
     if (loading) {
         return (
-             // Centered loading spinner within the main content area
-             <div className="flex items-center justify-center min-h-[calc(100vh-200px)]"> {/* Adjust height as needed */}
+             <div className="flex items-center justify-center min-h-[calc(100vh-200px)]">
                  <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
              </div>
         );
@@ -80,8 +78,8 @@ export default function DashboardHomePage() { // Renamed component
 
 
   const renderDashboardContent = () => {
-    console.log("Rendering dashboard for effective role:", role); // Render based on effective role from context
-    switch (role) { // Use role from useAuth (which is user.role or demoRole)
+    console.log("Rendering dashboard for effective role:", role);
+    switch (role) { // Render based on effective role from context
       case 'student':
         return <StudentDashboard />;
       case 'professor':
@@ -89,6 +87,7 @@ export default function DashboardHomePage() { // Renamed component
       case 'admin':
         return <AdminDashboard />;
       default:
+        // Only show this if no role is selected (shouldn't happen with default demo role)
         return (
           <Card className="shadow-lg border-dashed border-primary/30">
             <CardHeader>
@@ -99,7 +98,7 @@ export default function DashboardHomePage() { // Renamed component
             </CardHeader>
             <CardContent>
               <p>
-                Use the role selector above to explore different dashboard views in this demo application.
+                Use the role selector above to explore different dashboard views.
               </p>
             </CardContent>
           </Card>
@@ -108,8 +107,7 @@ export default function DashboardHomePage() { // Renamed component
   };
 
   return (
-    // Removed outer layout divs (Navbar, Footer), handled by dashboard/layout.tsx
-    <div className="space-y-8"> {/* Main content container */}
+    <div className="space-y-8">
          {/* Role Selector */}
          <Card className="bg-gradient-to-r from-primary/5 to-accent/5 border-border shadow-sm overflow-hidden">
             <CardHeader>
@@ -117,19 +115,20 @@ export default function DashboardHomePage() { // Renamed component
                   {user ? "Your Role" : "Demo Role Selector"}
                 </CardTitle>
                 <CardDescription>
-                   {/* Use the effective role from context */}
                    {user
-                    ? `You are logged in as a ${user.role || 'user with undetermined role'}. Log out to switch demo roles.`
-                    : `Currently viewing the ${role || 'default'} dashboard. Switch roles below.`}
+                    ? `You are logged in as a ${user.role}. Log out to switch demo roles.`
+                    : `Currently viewing the ${role} dashboard. Switch roles below.`}
                 </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
                  <div className="flex items-center space-x-2 flex-shrink-0">
                     <Label htmlFor="role-select" className="text-base font-medium text-foreground">Select Role:</Label>
                     <Select
-                        value={selectedRole ?? ''} // Ensure dropdown reflects local state (synced from context's effective role)
+                        // Use local selectedRole state for the dropdown value
+                        value={selectedRole ?? ''}
                         onValueChange={handleRoleChange}
-                        disabled={!!user} // Disable dropdown only if user is logged in
+                        // Disable dropdown only if user is actually logged in
+                        disabled={!!user}
                     >
                         <SelectTrigger id="role-select" className="w-[180px] bg-background shadow-inner">
                             <SelectValue placeholder="Select role" />

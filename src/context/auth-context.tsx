@@ -36,22 +36,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sessionToken, setSessionToken] = useState<string | null>(null); // Simulate session/token
   const [demoRole, setDemoRole] = useState<UserRole>('student'); // Default demo role
 
-  // Wrap session check in useEffect to run only on the client
+  // --- Client-Side Only Effect for Session Check ---
   useEffect(() => {
+    // Check if running in the browser before accessing localStorage
+    if (typeof window === 'undefined') {
+      setLoading(false); // Not in browser, stop loading
+      return;
+    }
+
     const checkSession = async () => {
-        setLoading(true); // Ensure loading state is true during check
+        setLoading(true);
         let storedToken: string | null = null;
         try {
-            // Ensure localStorage access only happens on the client
-            if (typeof window !== 'undefined') {
-                storedToken = localStorage.getItem('authToken');
-            }
+            storedToken = localStorage.getItem('authToken');
         } catch (error) {
-            console.warn("AuthProvider: Error accessing localStorage (maybe disabled or in SSR).", error);
+            console.warn("AuthProvider: Error accessing localStorage (maybe disabled).", error);
         }
 
-
         if (storedToken) {
+            setSessionToken(storedToken); // Set token state first
             try {
                 const response = await fetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${storedToken}` }
@@ -59,17 +62,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 if (response.ok) {
                     const userData: SimpleUser = await response.json();
                     setUser(userData);
-                    setSessionToken(storedToken);
                     console.log("AuthProvider: Session restored for user:", userData.email);
                 } else {
                      console.warn("AuthProvider: Invalid or expired token found. Clearing session.");
-                    if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Clear invalid token
+                    localStorage.removeItem('authToken');
                     setUser(null);
                     setSessionToken(null);
                 }
             } catch (error) {
                 console.error("AuthProvider: Error during session check API call:", error);
-                if (typeof window !== 'undefined') localStorage.removeItem('authToken'); // Clear token on error
+                localStorage.removeItem('authToken');
                 setUser(null);
                 setSessionToken(null);
             }
@@ -79,11 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
              setUser(null);
              setSessionToken(null);
         }
-        setLoading(false); // Set loading to false after check completes
+        setLoading(false);
     };
 
     checkSession();
-  }, []); // Empty dependency array ensures this runs only once on the client after mount
+    // This effect should only run once on mount
+  }, []);
 
 
   // Simplified error handling for API simulation
@@ -98,8 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         errorMessage = error;
     }
 
-    // Log the full error for debugging, including specific codes if available
-    // Check if error.code exists before logging it
+    // Log the full error for debugging
     console.error(`${action} Error:`, error?.code, errorMessage, error);
 
     toast({
@@ -110,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
 
-  const signInWithEmailPassword = async (email: string, pass: string): Promise<boolean> => {
+  const signInWithEmailPassword = useCallback(async (email: string, pass: string): Promise<boolean> => {
     setLoading(true);
     try {
         const response = await fetch('/api/auth/login', {
@@ -121,7 +123,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!response.ok) {
             const errorData = await response.json();
-            // Throw the specific error message from the API
             throw new Error(errorData.message || `Login failed with status ${response.status}`);
         }
 
@@ -129,23 +130,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(userData);
         setSessionToken(token);
-         if (typeof window !== 'undefined') localStorage.setItem('authToken', token);
+         if (typeof window !== 'undefined') {
+            localStorage.setItem('authToken', token);
+         }
         toast({ title: "Successfully signed in." });
-        return true; // Indicate success
+        setLoading(false);
+        return true;
 
     } catch (error: any) {
-        handleAuthError(error, "Sign-In"); // Handles logging and toasting
+        handleAuthError(error, "Sign-In");
         setUser(null);
         setSessionToken(null);
-        if (typeof window !== 'undefined') localStorage.removeItem('authToken');
-        // Return false instead of re-throwing, error is already handled
-        return false; // Indicate failure
-    } finally {
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem('authToken');
+        }
         setLoading(false);
+        return false;
     }
-  };
+  }, [toast]); // Added toast dependency
 
- const signUpWithEmailPassword = async (name: string, email: string, pass: string): Promise<boolean> => {
+ const signUpWithEmailPassword = useCallback(async (name: string, email: string, pass: string): Promise<boolean> => {
     setLoading(true);
     try {
         const response = await fetch('/api/auth/signup', {
@@ -156,7 +160,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (!response.ok) {
             const errorData = await response.json();
-             // Throw the specific error message from the API
             throw new Error(errorData.message || `Sign-up failed with status ${response.status}`);
         }
 
@@ -164,24 +167,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(newUser);
         setSessionToken(token);
-        if (typeof window !== 'undefined') localStorage.setItem('authToken', token);
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('authToken', token);
+        }
         toast({ title: "Account created successfully!" });
-         return true; // Indicate success
+        setLoading(false);
+         return true;
 
     } catch (error: any) {
-        handleAuthError(error, "Sign-Up"); // Handles logging and toasting
+        handleAuthError(error, "Sign-Up");
         setUser(null);
         setSessionToken(null);
-        if (typeof window !== 'undefined') localStorage.removeItem('authToken');
-        // Return false instead of re-throwing
-        return false; // Indicate failure
-    } finally {
+        if (typeof window !== 'undefined') {
+             localStorage.removeItem('authToken');
+        }
         setLoading(false);
+        return false;
     }
- };
+ }, [toast]); // Added toast dependency
 
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     setLoading(true);
     try {
         // Simulate API call to logout endpoint (optional)
@@ -189,7 +195,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setUser(null);
         setSessionToken(null);
-        if (typeof window !== 'undefined') localStorage.removeItem('authToken');
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem('authToken');
+        }
         toast({ title: "Successfully signed out." });
         setDemoRole('student'); // Reset demo role on sign out
     } catch (error: any) {
@@ -197,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
         setLoading(false);
     }
-  };
+  }, [toast]); // Added toast dependency
 
   // Function to set the demo role, only works if user is not logged in
   const handleSetRole = useCallback((role: UserRole) => {
@@ -208,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Optionally provide feedback to the user
       // toast({ title: "Action Denied", description: "Log out to switch demo roles." });
     }
-  }, [user]); // Depend on user state
+  }, [user]);
 
 
   // Role is now derived from the authenticated user OR the demo role
@@ -228,18 +236,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUpWithEmailPassword,
     signOut,
     role: currentRole,
-    setRole: handleSetRole, // Expose the function to set demo role
+    setRole: handleSetRole,
     userId: currentUserId,
   }), [
       user,
       loading,
       currentRole,
       currentUserId,
-      handleSetRole, // Add handleSetRole to dependencies
-      // signInWithEmailPassword, signUpWithEmailPassword, signOut are stable due to useCallback or being defined outside
+      handleSetRole,
+      signInWithEmailPassword, // Add memoized functions
+      signUpWithEmailPassword,
+      signOut
     ]);
 
 
-  // Render children directly while loading, initial check happens client-side
+  // Render children; loading state handles initial rendering until session check completes.
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
