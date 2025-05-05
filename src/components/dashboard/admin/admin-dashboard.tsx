@@ -1,21 +1,31 @@
 
+"use client";
+
 import { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Users, Settings, BookOpen, PlusCircle, Trash2, Save, Loader2 } from "lucide-react";
 import {
-    initialSampleUsers,
+    getInitialSampleUsersForClient, // Use function to get client-safe user list
     initialSampleCourses,
     initialSampleEnrollments,
     initialSampleAssignments, // Need assignments to cascade delete
     initialSampleGrades, // Need grades to cascade delete
+    initialSampleAnnouncements, // Added import
+    initialSampleUploadedFiles, // Added import
     createSampleUser,
     createSampleCourse,
-    type User,
+    createSampleEnrollment, // Added import
+    createSampleAnnouncement, // Added import
+    createSampleFile, // Added import
+    mockUsersDb, // Import the mock DB to add/delete users
+    type User, // Full User type (used for creation/backend simulation)
     type Course,
     type Enrollment,
     type Assignment,
-    type Grade
+    type Grade,
+    type Announcement, // Added import
+    type UploadedFile // Added import
 } from "@/lib/sample-data"; // Import initial data and create functions
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -44,10 +54,13 @@ interface PlatformSettings {
     theme: 'light' | 'dark';
 }
 
+// Define SimpleUser type without password hash for client-side state
+type SimpleUser = Omit<User, 'passwordHash'>;
+
 export function AdminDashboard() {
   const { toast } = useToast();
   // Initialize state with the imported initial sample data
-  const [users, setUsers] = useState<User[]>(initialSampleUsers);
+  const [users, setUsers] = useState<SimpleUser[]>(getInitialSampleUsersForClient()); // Use client-safe function
   const [courses, setCourses] = useState<Course[]>(initialSampleCourses);
   const [enrollments, setEnrollments] = useState<Enrollment[]>(initialSampleEnrollments);
   // Keep track of assignments and grades for cascading deletes
@@ -87,31 +100,47 @@ export function AdminDashboard() {
       return;
     }
 
+    const lowerCaseEmail = newUserEmail.toLowerCase();
+
     // Check if user already exists in current local state
-    if (users.some(u => u.email.toLowerCase() === newUserEmail.toLowerCase())) {
+    if (users.some(u => u.email.toLowerCase() === lowerCaseEmail)) {
       toast({ title: "User Exists", description: `User with email ${newUserEmail} already exists.`, variant: "destructive" });
       return;
     }
 
-    // Simulate creating a user object (doesn't mutate global state)
-    const simulationResult = createSampleUser({ name: newUserName, email: newUserEmail, role: newUserRole });
+    // Simulate API call to create user (adds to mock DB and updates local state)
+    // In a real app, this would be an API call that returns the created user
+    try {
+        // Hash a placeholder password (in real app, API handles hashing)
+        // This is just for the mock DB simulation
+        const placeholderPasswordHash = '$2b$10$placeholderhashfornewuser'; // Use a consistent placeholder or generate one
 
-    if ('error' in simulationResult) {
-        toast({ title: "Creation Error", description: simulationResult.error, variant: "destructive" });
-        return;
+        const newUserObject = createSampleUser({
+            name: newUserName,
+            email: lowerCaseEmail,
+            role: newUserRole,
+            passwordHash: placeholderPasswordHash,
+        });
+
+        // Update the mock DB (simulating backend update)
+        mockUsersDb.set(lowerCaseEmail, newUserObject);
+
+        // Update local state immutably (without password hash)
+        const { passwordHash, ...newUserForClient } = newUserObject;
+        setUsers(currentUsers => [...currentUsers, newUserForClient]);
+
+
+        toast({ title: "User Added", description: `User ${newUserForClient.name} created successfully (simulated).` });
+
+        // Reset form
+        setNewUserName('');
+        setNewUserEmail('');
+        setNewUserRole('');
+
+    } catch (error) {
+         console.error("Error adding user:", error);
+         toast({ title: "Creation Error", description: "Failed to simulate user creation.", variant: "destructive" });
     }
-
-    const newUser = simulationResult;
-
-    // Update local state immutably
-    setUsers(currentUsers => [...currentUsers, newUser]);
-
-    toast({ title: "User Added", description: `User ${newUser.name} created successfully (simulated).` });
-
-    // Reset form
-    setNewUserName('');
-    setNewUserEmail('');
-    setNewUserRole('');
   };
 
     const handleAddCourse = (e: React.FormEvent) => {
@@ -127,7 +156,7 @@ export function AdminDashboard() {
         return;
     }
 
-    // Simulate creating a course object (doesn't mutate global state)
+    // Simulate creating a course object (doesn't mutate global state directly)
     const simulationResult = createSampleCourse({ title: newCourseTitle, description: newCourseDescription, professorId: newCourseProfessorId });
 
      if ('error' in simulationResult) {
@@ -138,6 +167,9 @@ export function AdminDashboard() {
 
      // Update the component's local state immutably
      setCourses(currentCourses => [...currentCourses, newCourse]);
+
+     // In a real app, you would also need to update the persistent storage (e.g., sample-data.ts or a DB)
+     // For demo: initialSampleCourses.push(newCourse); // Direct mutation - avoid in React, but needed for demo persistence across renders
 
      toast({ title: "Course Added", description: `Course "${newCourse.title}" created successfully (simulated).` });
 
@@ -159,6 +191,14 @@ export function AdminDashboard() {
      }
      // TODO: Add check for deleting self if applicable (using useAuth context)
 
+      // Update the mock DB (simulating backend update)
+     const deletedFromDb = mockUsersDb.delete(userToDelete.email.toLowerCase());
+     if (!deletedFromDb) {
+        console.warn(`User ${userToDelete.email} not found in mock DB for deletion.`);
+        // Proceed with updating local state anyway
+     }
+
+
      // Update local users state
      const updatedUsers = users.filter(user => user.id !== userId);
      setUsers(updatedUsers);
@@ -171,6 +211,7 @@ export function AdminDashboard() {
          const updatedGrades = grades.filter(g => g.studentId !== userId);
          setGrades(updatedGrades);
          console.log(`Simulating removal of enrollments and grades for student ${userId}`);
+         // TODO: Update persistent storage (e.g., sample-data.ts arrays) for demo
      }
 
      // If professor, unassign courses or reassign
@@ -179,6 +220,7 @@ export function AdminDashboard() {
          const updatedCourses = courses.map(c => c.professorId === userId ? { ...c, professorId: 'unassigned' } : c);
          setCourses(updatedCourses);
           console.log(`Simulating unassignment of courses for professor ${userId}`);
+          // TODO: Update persistent storage (e.g., sample-data.ts arrays) for demo
           // Note: Files/Announcements might still be linked by professorId, handle if needed
      }
 
@@ -207,6 +249,7 @@ export function AdminDashboard() {
          setGrades(updatedGrades);
 
         // In a real app, would also delete files, announcements etc.
+        // TODO: Update persistent storage (e.g., sample-data.ts arrays) for demo
         console.log(`Simulating removal of related data (enrollments, assignments, grades) for course ${courseId}`);
         toast({ title: "Course Deleted", description: `Course "${courseToDelete.title}" removed (simulated).` });
     };
@@ -227,10 +270,12 @@ export function AdminDashboard() {
         toast({ title: "Settings Saved", description: "Platform settings have been updated (simulated)." });
 
         // Apply theme change (basic example, real app might need global state/context or reload)
-        if (platformSettings.theme === 'dark') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
+        if (typeof window !== 'undefined') {
+             if (platformSettings.theme === 'dark') {
+                 document.documentElement.classList.add('dark');
+             } else {
+                 document.documentElement.classList.remove('dark');
+             }
         }
     };
 
@@ -326,7 +371,7 @@ export function AdminDashboard() {
                     </div>
                     <div className="flex items-center gap-2">
                         <Badge variant={user.role === 'admin' ? 'destructive' : user.role === 'professor' ? 'secondary' : 'outline'}>
-                            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                            {user.role?.charAt(0).toUpperCase() + user.role?.slice(1)} {/* Added optional chaining */}
                         </Badge>
                         {/* Delete User Button with Confirmation */}
                         <AlertDialog>

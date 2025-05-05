@@ -15,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import {
     initialSampleCourses,
-    initialSampleUsers,
+    getInitialSampleUsersForClient, // Changed import
     initialSampleEnrollments,
     initialSampleAssignments,
     initialSampleGrades,
@@ -26,7 +26,7 @@ import {
     createSampleAnnouncement,
     createSampleFile,
     type Course,
-    type User,
+    type User, // Keep User type for reference, but use SimpleUser for state
     type Enrollment,
     type Assignment,
     type Grade,
@@ -50,6 +50,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+// Define SimpleUser type without password hash for client-side state
+type SimpleUser = Omit<User, 'passwordHash'>;
 
 export function ProfessorDashboard() {
   const { userId } = useAuth(); // Get sample professor userId from context
@@ -80,18 +82,22 @@ export function ProfessorDashboard() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [grades, setGrades] = useState<Grade[]>([]);
-  const [students, setStudents] = useState<User[]>([]);
+  const [students, setStudents] = useState<SimpleUser[]>([]); // Use SimpleUser
+  const [allUsers, setAllUsers] = useState<SimpleUser[]>([]); // Store all users locally
 
   // Selected Course for Management View
   const [selectedCourseManageId, setSelectedCourseManageId] = useState<string | null>(null);
 
   // Memoize professor's name
   const professorName = useMemo(() => {
-    return initialSampleUsers.find(u => u.id === userId)?.name ?? 'Professor';
-  }, [userId]);
+    return allUsers.find(u => u.id === userId)?.name ?? 'Professor'; // Use allUsers state
+  }, [userId, allUsers]);
 
-   // Effect to initialize professor's data based on userId
+   // Effect to initialize professor's data and all users
    useEffect(() => {
+    const clientUsers = getInitialSampleUsersForClient();
+    setAllUsers(clientUsers); // Set all users state
+
     if (userId) {
         const courses = getCoursesByProfessor(userId); // Reads from initial data
         setProfessorCourses(courses);
@@ -565,7 +571,7 @@ export function ProfessorDashboard() {
                                         <TableBody>
                                             {grades.map(grade => {
                                                 // Find student and assignment from respective initial data arrays
-                                                const student = initialSampleUsers.find(s => s.id === grade.studentId);
+                                                const student = allUsers.find(s => s.id === grade.studentId); // Use allUsers state
                                                 const assignment = initialSampleAssignments.find(a => a.id === grade.assignmentId);
                                                 const percentage = grade.maxScore > 0 ? Math.round((grade.score / grade.maxScore) * 100) : 0;
                                                 const scoreValid = grade.maxScore > 0;

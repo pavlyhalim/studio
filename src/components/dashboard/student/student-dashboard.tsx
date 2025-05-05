@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/hooks/use-auth';
 import {
     initialSampleCourses,
-    initialSampleUsers,
+    getInitialSampleUsersForClient, // Replaced initialSampleUsers
     initialSampleEnrollments,
     initialSampleAssignments,
     initialSampleGrades,
@@ -47,7 +47,8 @@ export function StudentDashboard() {
 
   // Memoize student's name
   const studentName = useMemo(() => {
-    return initialSampleUsers.find(u => u.id === userId)?.name ?? 'Student';
+    // Use the client-safe function to get users
+    return getInitialSampleUsersForClient().find(u => u.id === userId)?.name ?? 'Student';
   }, [userId]);
 
 
@@ -296,7 +297,8 @@ export function StudentDashboard() {
                                     {recentAnnouncements.map(ann => {
                                         // Find course and professor from initial data
                                         const course = initialSampleCourses.find(c => c.id === ann.courseId);
-                                        const professor = initialSampleUsers.find(u => u.id === ann.professorId);
+                                        // Use client-safe function to find professor
+                                        const professor = getInitialSampleUsersForClient().find(u => u.id === ann.professorId);
                                         return (
                                              <li key={ann.id} className="text-sm p-3 border rounded bg-secondary/10 shadow-sm">
                                                 <p className="font-semibold">{ann.title}</p>
