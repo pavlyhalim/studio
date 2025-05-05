@@ -21,7 +21,6 @@ const nextConfig: NextConfig = {
     ],
   },
   // Add bcrypt and related modules to serverComponentsExternalPackages
-  // Ensure node-loader is also external if used in server components
   experimental: {
     serverComponentsExternalPackages: ['bcrypt', 'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-loader'],
   },
@@ -44,37 +43,22 @@ const nextConfig: NextConfig = {
     );
 
     // Rule for .node files (often needed for bcrypt)
-    // Ensure this rule doesn't conflict with other loaders
     // Check if a similar rule already exists before adding
-    const nodeLoaderRule = {
-      test: /\.node$/,
-      loader: 'node-loader',
-      options: {
-        // Optional: You might need to adjust the output path depending on your setup
-        // name: '[name].[ext]',
-      },
-    };
-    // Avoid adding duplicate rules
     const hasNodeLoaderRule = config.module.rules.some(
-      (rule: any) => rule.test?.toString() === '/\\.node$/'
+      (rule: any) => rule.loader === 'node-loader' && rule.test?.toString() === '/\\.node$/'
     );
     if (!hasNodeLoaderRule) {
-      config.module.rules.push(nodeLoaderRule);
-    }
-
-     // Add another attempt to exclude the specific file/directory from being processed by loaders
-    // This targets any loader trying to process .html within that specific context
-    // Check if ignore-loader rule already exists
-    const hasIgnoreLoaderRule = config.module.rules.some(
-      (rule: any) => rule.loader === 'ignore-loader'
-    );
-    if (!hasIgnoreLoaderRule) {
       config.module.rules.push({
-          test: /index\.html$/,
-          include: /@mapbox[\\\/]node-pre-gyp[\\\/]lib[\\\/]util[\\\/]nw-pre-gyp/,
-          loader: 'ignore-loader',
+        test: /\.node$/,
+        loader: 'node-loader',
+        options: {
+          // Optional: You might need to adjust the output path depending on your setup
+          // name: '[name].[ext]',
+        },
       });
     }
+
+    // Removed the ignore-loader rule as IgnorePlugin should handle this.
 
 
     // Important: return the modified config
@@ -83,3 +67,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
