@@ -20,9 +20,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Add bcrypt to serverComponentsExternalPackages to prevent bundling issues
+  // Add bcrypt and related modules to serverComponentsExternalPackages
   experimental: {
-    serverComponentsExternalPackages: ['bcrypt'],
+    serverComponentsExternalPackages: ['bcrypt', 'node-pre-gyp', '@mapbox/node-pre-gyp'],
   },
   // Add Webpack config to ignore the problematic file/packages
   webpack: (config, { isServer, webpack }) => {
@@ -34,11 +34,11 @@ const nextConfig: NextConfig = {
       })
     );
 
-    // Specifically ignore the problematic HTML file with a more precise context
+    // Specifically ignore the problematic HTML file with a slightly broader context
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /index\.html$/, // Target the specific file
-        contextRegExp: /node-pre-gyp\/lib\/util\/nw-pre-gyp$/, // Narrow the context
+        contextRegExp: /node_modules\/@mapbox\/node-pre-gyp\/lib\/util$/, // Broaden context slightly
       })
     );
 
