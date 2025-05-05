@@ -62,6 +62,21 @@ const nextConfig: NextConfig = {
       config.module.rules.push(nodeLoaderRule);
     }
 
+     // Add another attempt to exclude the specific file/directory from being processed by loaders
+    // This targets any loader trying to process .html within that specific context
+    // Check if ignore-loader rule already exists
+    const hasIgnoreLoaderRule = config.module.rules.some(
+      (rule: any) => rule.loader === 'ignore-loader'
+    );
+    if (!hasIgnoreLoaderRule) {
+      config.module.rules.push({
+          test: /index\.html$/,
+          include: /@mapbox[\\\/]node-pre-gyp[\\\/]lib[\\\/]util[\\\/]nw-pre-gyp/,
+          loader: 'ignore-loader',
+      });
+    }
+
+
     // Important: return the modified config
     return config;
   },
