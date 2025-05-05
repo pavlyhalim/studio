@@ -26,27 +26,28 @@ const nextConfig: NextConfig = {
   },
   // Add Webpack config to ignore the problematic file/packages
   webpack: (config, { isServer, webpack }) => {
-    // Ignore problematic native module dependencies globally
+    // Ignore problematic native module dependencies more broadly
+    // This should cover most cases where these modules cause issues
     config.plugins.push(
       new webpack.IgnorePlugin({
-        resourceRegExp: /^(node-pre-gyp|@mapbox\/node-pre-gyp|nw-pre-gyp)$/,
-        // Removed contextRegExp to apply ignore more broadly
+        resourceRegExp: /^(node-pre-gyp|@mapbox\/node-pre-gyp|nw-pre-gyp|node-gyp-build)$/,
       })
     );
 
-    // Specifically ignore the problematic HTML file within the correct directory
+    // Specifically ignore the problematic HTML file, trying without context first
+    // This file seems to cause issues with bundlers trying to parse it.
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /index\.html$/,
-        contextRegExp: /node_modules\/@mapbox\/node-pre-gyp\/lib\/util$/, // Keep this specific context
+        // Removed contextRegExp to make the ignore rule less specific and more robust
+        // contextRegExp: /node_modules\/@mapbox\/node-pre-gyp\/lib\/util$/,
       })
     );
 
-    // Add rule to handle .node files if bcrypt is causing issues
-    // (Less likely the cause of *this* error, but good practice for bcrypt)
+    // Rule for .node files (often needed for bcrypt)
     config.module.rules.push({
       test: /\.node$/,
-      use: 'node-loader', // Using 'use' for consistency
+      loader: 'node-loader', // Use loader instead of use for single loader
     });
 
 
