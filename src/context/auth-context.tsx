@@ -3,193 +3,273 @@
 import type { ReactNode } from 'react';
 import { createContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import { auth, db } from '@/lib/firebase'; // Import Firebase auth and db
-import {
-    createUserWithEmailAndPassword,
-    signInWithEmailAndPassword,
-    signOut as firebaseSignOut,
-    onAuthStateChanged,
-    updateProfile,
-    type User as FirebaseUser
-} from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { 
+  auth, 
+  googleProvider
+} from "@/lib/firebase";
+import { 
+  onAuthStateChanged,
+  signInWithEmailAndPassword as firebaseSignInWithEmailPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  updateProfile 
+} from "firebase/auth";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { COLLECTIONS } from "@/lib/models";
+import type { UserRecord } from "@/lib/models";
 
 // Define possible roles
 export type UserRole = 'student' | 'professor' | 'admin' | null;
 
-// Define our application's user structure
-interface AppUser {
-  id: string; // Firebase UID
-  email: string | null;
+// Define simplified user structure for context
+interface SimpleUser {
+  id: string;
   name: string | null;
+  email: string | null;
   role: UserRole;
+  photoURL?: string | null;
 }
 
 interface AuthContextType {
-  user: AppUser | null;
+  user: SimpleUser | null;
   loading: boolean;
-  signInWithEmailPassword: (email: string, pass: string) => Promise<boolean>;
-  signUpWithEmailPassword: (name: string, email: string, pass: string) => Promise<boolean>;
+  signInWithEmailPassword: (email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
+  signInWithGoogle: () => Promise<boolean>; // Returns true on success, false on failure
+  signUpWithEmailPassword: (name: string, email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
   signOut: () => Promise<void>;
   role: UserRole; // Effective role (user's role or demoRole if logged out)
   setRole: (role: UserRole) => void; // Function to set the demoRole when logged out
-  userId: string | null;
+  userId: string | null; // Added userId for convenience
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AppUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<SimpleUser | null>(null);
+  const [loading, setLoading] = useState(true); // Start loading until auth state check is done
   const { toast } = useToast();
-  const [demoRole, setDemoRole] = useState<UserRole>('student');
+  const [demoRole, setDemoRole] = useState<UserRole>('student'); // Default demo role
 
-  // Firebase error handler
-  const handleAuthError = (error: any, action: "Sign-In" | "Sign-Up" | "Sign-Out" | "Session Management") => {
-    let title = `${action} Failed`;
-    let description = "An unexpected error occurred. Please try again.";
-
-    if (error && error.code) {
-        switch (error.code) {
-            case 'auth/user-not-found':
-            case 'auth/wrong-password':
-                description = "Invalid email or password.";
-                break;
-            case 'auth/email-already-in-use':
-                description = "This email address is already in use.";
-                break;
-            case 'auth/weak-password':
-                description = "Password is too weak. It should be at least 6 characters.";
-                break;
-            case 'auth/invalid-email':
-                description = "The email address is not valid.";
-                break;
-            default:
-                description = error.message || description;
-        }
-    } else if (error instanceof Error) {
-        description = error.message;
-    }
-
-    console.error(`${action} Error:`, error);
-    toast({ title, description, variant: "destructive" });
-  };
-
-  // Listener for Firebase authentication state changes
+  // Listen for Firebase auth state changes
   useEffect(() => {
-    setLoading(true);
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        try {
-          // Fetch user profile from Firestore
-          const userDocRef = doc(db, "users", firebaseUser.uid);
-          const userDocSnap = await getDoc(userDocRef);
-
-          if (userDocSnap.exists()) {
-            const userDataFromFirestore = userDocSnap.data();
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        setLoading(true);
+        
+        if (firebaseUser) {
+          // User is signed in
+          console.log("Auth state changed: User is signed in");
+          
+          // Get additional user data from Firestore
+          const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data() as UserRecord;
+            // Create the user object with Firestore role
+            const userWithRole: SimpleUser = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName,
+              email: firebaseUser.email,
+              role: userData.role || 'student', // Default to student if missing
+              photoURL: firebaseUser.photoURL
+            };
+            
+            setUser(userWithRole);
+            
+            // If the user exists in auth but no Firestore record, update Firestore
+            if (!userDoc.exists()) {
+              // Create a basic user document
+              await setDoc(userDocRef, {
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName || 'Firebase User',
+                email: firebaseUser.email?.toLowerCase(),
+                role: 'student', // Default role
+                photoURL: firebaseUser.photoURL,
+                createdAt: serverTimestamp(),
+                lastLogin: serverTimestamp()
+              });
+            } else {
+              // Update last login timestamp
+              await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
+            }
+          } else {
+            // Handle first-time authentication (user in Auth but not in Firestore)
+            console.log("New user logged in but no Firestore record yet");
+            
+            // Create a basic user document
+            const newUserData: Partial<UserRecord> = {
+              id: firebaseUser.uid,
+              name: firebaseUser.displayName || 'Firebase User',
+              email: firebaseUser.email?.toLowerCase(),
+              role: 'student', // Default role
+              photoURL: firebaseUser.photoURL || undefined,
+              createdAt: serverTimestamp() as unknown as number,
+              lastLogin: serverTimestamp() as unknown as number
+            };
+            
+            await setDoc(userDocRef, newUserData);
+            
+            // Set the user state with the default role
             setUser({
               id: firebaseUser.uid,
+              name: firebaseUser.displayName,
               email: firebaseUser.email,
-              name: firebaseUser.displayName || userDataFromFirestore.name, // Prefer displayName, fallback to Firestore
-              role: userDataFromFirestore.role || 'student', // Default to student if role not in Firestore
+              role: 'student', // Default to student for new users
+              photoURL: firebaseUser.photoURL
             });
-          } else {
-            // This case might happen if Firestore document creation failed during signup
-            // Or if it's a new sign-in method for an existing Firebase user without a profile yet
-            console.warn(`No Firestore profile found for user ${firebaseUser.uid}. Using Firebase data only.`);
-            // Creating a default profile here might be an option
-            // For now, set with available Firebase data and a default role
-            const defaultRole = 'student';
-            const defaultName = firebaseUser.displayName || "New User";
-            await setDoc(doc(db, "users", firebaseUser.uid), {
-                name: defaultName,
-                email: firebaseUser.email,
-                role: defaultRole,
-                createdAt: new Date().toISOString(),
-            });
-            setUser({
-                id: firebaseUser.uid,
-                email: firebaseUser.email,
-                name: defaultName,
-                role: defaultRole,
+            
+            // Welcome the new user
+            toast({ 
+              title: "Welcome to ALANT Lite!", 
+              description: "Your account has been created successfully." 
             });
           }
-        } catch (error) {
-          console.error("Error fetching user profile from Firestore:", error);
-          // Fallback to Firebase data if Firestore fetch fails
-          setUser({
-            id: firebaseUser.uid,
-            email: firebaseUser.email,
-            name: firebaseUser.displayName,
-            role: 'student', // Fallback role
-          });
-          handleAuthError(error, "Session Management");
+        } else {
+          // User is signed out
+          console.log("Auth state changed: User is signed out");
+          setUser(null);
         }
-      } else {
+      } catch (error) {
+        console.error("Error in auth state change handler:", error);
         setUser(null);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe(); // Cleanup subscription on unmount
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, [toast]);
+
+  // Simplified error handling for Firebase auth
+  const handleAuthError = (error: any, action: "Sign-In" | "Sign-Up" | "Sign-Out" | "Session Check") => {
+    let errorMessage = `An error occurred during ${action}. Please try again.`;
+    let title = `${action} Failed`;
+
+    // Parse Firebase error codes to user-friendly messages
+    if (error.code) {
+      switch (error.code) {
+        case 'auth/invalid-email':
+          errorMessage = 'The email address is not valid.';
+          break;
+        case 'auth/user-disabled':
+          errorMessage = 'This user account has been disabled.';
+          break;
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+          errorMessage = 'Invalid email or password.';
+          break;
+        case 'auth/email-already-in-use':
+          errorMessage = 'This email address is already in use.';
+          break;
+        case 'auth/weak-password':
+          errorMessage = 'The password is too weak. It should be at least 6 characters.';
+          break;
+        case 'auth/invalid-credential':
+          errorMessage = 'Invalid login credentials.';
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = 'Network error. Please check your internet connection.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many unsuccessful login attempts. Please try again later.';
+          break;
+        default:
+          errorMessage = `Authentication error: ${error.message || 'Unknown error'}`;
+      }
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+
+    // Log the error for debugging
+    console.error(`${action} Error:`, error.code, errorMessage, error);
+
+    // Show toast notification
+    toast({
+      title: title,
+      description: errorMessage,
+      variant: "destructive",
+    });
+  };
+
+  const signInWithEmailPassword = useCallback(async (email: string, pass: string): Promise<boolean> => {
+    try {
+      setLoading(true);
+      
+      // Use Firebase auth for sign-in
+      const userCredential = await firebaseSignInWithEmailPassword(auth, email, pass);
+      
+      // Success feedback is handled by the auth state change handler
+      toast({ title: "Successfully signed in." });
+      
+      return true;
+    } catch (error: any) {
+      handleAuthError(error, "Sign-In");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  const signInWithGoogle = useCallback(async (): Promise<boolean> => {
+    try {
+      setLoading(true);
+      
+      // Use Firebase auth for Google sign-in
+      await signInWithPopup(auth, googleProvider);
+      
+      // Success feedback is handled by the auth state change handler
+      
+      return true;
+    } catch (error: any) {
+      handleAuthError(error, "Sign-In");
+      return false;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-
-  const signUpWithEmailPassword = useCallback(
-    async (name: string, email: string, pass: string): Promise<boolean> => {
+  const signUpWithEmailPassword = useCallback(async (name: string, email: string, pass: string): Promise<boolean> => {
+    try {
       setLoading(true);
-      try {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-        const firebaseUser = userCredential.user;
-
-        // Update Firebase profile display name
-        await updateProfile(firebaseUser, { displayName: name });
-
-        // Create user document in Firestore
-        const userDocRef = doc(db, "users", firebaseUser.uid);
-        await setDoc(userDocRef, {
-          name: name,
-          email: firebaseUser.email,
-          role: 'student', // Default role for new users
-          createdAt: new Date().toISOString(), // Optional: timestamp
-        });
-
-        // User state will be set by onAuthStateChanged listener
-        toast({ title: "Account created successfully!" });
-        setLoading(false);
-        return true;
-      } catch (error: any) {
-        handleAuthError(error, "Sign-Up");
-        setLoading(false);
-        return false;
-      }
-    }, [toast]
-  );
-
-  const signInWithEmailPassword = useCallback(
-    async (email: string, pass: string): Promise<boolean> => {
-      setLoading(true);
-      try {
-        await signInWithEmailAndPassword(auth, email, pass);
-        // User state will be set by onAuthStateChanged listener
-        toast({ title: "Successfully signed in." });
-        setLoading(false);
-        return true;
-      } catch (error: any) {
-        handleAuthError(error, "Sign-In");
-        setLoading(false);
-        return false;
-      }
-    }, [toast]
-  );
+      
+      // Use Firebase auth for sign-up
+      const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+      
+      // Set the display name
+      await updateProfile(userCredential.user, {
+        displayName: name
+      });
+      
+      // Create user document in Firestore
+      // Note: Handled in the auth state change listener now
+      
+      // Success feedback is handled by the auth state change handler
+      
+      return true;
+    } catch (error: any) {
+      handleAuthError(error, "Sign-Up");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const signOut = useCallback(async () => {
-    setLoading(true);
     try {
+      setLoading(true);
+      
+      // Use Firebase auth for sign-out
       await firebaseSignOut(auth);
-      // User state will be set to null by onAuthStateChanged listener
+      
+      // Success feedback
       toast({ title: "Successfully signed out." });
-      setDemoRole('student'); // Reset demo role on sign out
+      
+      // Reset demo role on sign out
+      setDemoRole('student');
     } catch (error: any) {
       handleAuthError(error, "Sign-Out");
     } finally {
@@ -197,29 +277,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [toast]);
 
-  const handleSetRole = useCallback((newRole: UserRole) => {
+  // Function to set the demo role, only works if user is not logged in
+  const handleSetRole = useCallback((role: UserRole) => {
     if (!user) {
-      setDemoRole(newRole);
+      setDemoRole(role);
     } else {
       console.warn("Cannot set demo role while logged in.");
+      // Inform user that they need to log out to change demo role
+      toast({ 
+        title: "Cannot Change Role", 
+        description: "You need to log out to change the demo role.",
+        variant: "default"
+      });
     }
-  }, [user]);
+  }, [user, toast]);
 
-  const currentRole = useMemo(() => user?.role ?? demoRole, [user, demoRole]);
-  const currentUserId = useMemo(() => user?.id ?? null, [user]);
+  // Role is now derived from the authenticated user OR the demo role
+  const currentRole = useMemo(() => {
+    return user?.role ?? demoRole; // Prioritize user's actual role
+  }, [user, demoRole]);
+
+  const currentUserId = useMemo(() => {
+    return user?.id ?? null; // Use user's ID if logged in
+  }, [user]);
 
   const value = useMemo(() => ({
     user,
     loading,
     signInWithEmailPassword,
+    signInWithGoogle,
     signUpWithEmailPassword,
     signOut,
     role: currentRole,
     setRole: handleSetRole,
     userId: currentUserId,
   }), [
-    user, loading, currentRole, currentUserId,
-    signInWithEmailPassword, signUpWithEmailPassword, signOut, handleSetRole
+    user,
+    loading,
+    currentRole,
+    currentUserId,
+    handleSetRole,
+    signInWithEmailPassword,
+    signInWithGoogle,
+    signUpWithEmailPassword,
+    signOut
   ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

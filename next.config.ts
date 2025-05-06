@@ -1,8 +1,7 @@
+/** @type {import('next').NextConfig} */
+const { webpack } = require('webpack'); // Use CommonJS import
 
-import type {NextConfig} from 'next';
-import webpack from 'webpack'; // Import webpack
-
-const nextConfig: NextConfig = {
+const nextConfig = {
   /* config options here */
   typescript: {
     ignoreBuildErrors: true,
@@ -21,48 +20,50 @@ const nextConfig: NextConfig = {
     ],
   },
   // Add bcrypt and related modules to serverComponentsExternalPackages
-  serverExternalPackages: ['bcrypt', 'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-loader'],
+  experimental: {
+    serverComponentsExternalPackages: ['bcrypt', 'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-loader'],
+  },
   // Add Webpack config to ignore the problematic file/packages
-  webpack: (config, { isServer, webpack }) => {
-    // Ignore problematic native module dependencies more broadly on both server and client
+  webpack: (config, { isServer }) => {
+    // Add rule to handle HTML files - use null loader to ignore them
+    config.module.rules.push({
+      test: /\.html$/,
+      include: /node_modules/,
+      use: 'null-loader',
+    });
+
+    // Ignore problematic native module dependencies more broadly
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /^(node-pre-gyp|nw-pre-gyp|node-gyp-build)$/,
       })
     );
 
-    // Specifically ignore the problematic HTML file within the mapbox package context
-    // This regex should robustly match the path regardless of OS path separators
+    // More comprehensive ignore pattern for mapbox HTML files
     config.plugins.push(
       new webpack.IgnorePlugin({
-        resourceRegExp: /index\.html$/,
-        contextRegExp: /@mapbox[\/]node-pre-gyp[\/]lib[\/]util[\/]nw-pre-gyp$/,
+        resourceRegExp: /\.html$/,
+        contextRegExp: /@mapbox\/node-pre-gyp/,
       })
     );
 
     // Rule for .node files (often needed for bcrypt)
-    // Check if a similar rule already exists before adding
-    const hasNodeLoaderRule = config.module.rules.some(
-      (rule: any) => rule.loader === 'node-loader' && rule.test?.toString() === '/\.node$/'
-    );
-    if (!hasNodeLoaderRule) {
-      config.module.rules.push({
-        test: /\.node$/,
-        loader: 'node-loader',
-        options: {
-          // Optional: You might need to adjust the output path depending on your setup
-          // name: '[name].[ext]',
-        },
-      });
-    }
+    config.module.rules.push({
+      test: /\.node$/,
+      use: 'node-loader',
+    });
 
-    // Removed the ignore-loader rule as IgnorePlugin should handle this.
-
+    // Fallback for node modules
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      os: false,
+    };
 
     // Important: return the modified config
     return config;
   },
 };
 
-export default nextConfig;
-
+module.exports = nextConfig;
