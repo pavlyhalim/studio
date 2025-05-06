@@ -10,7 +10,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "patch-package",
+    "analyze": "ANALYZE=true next build",
+    "prepare-db": "node scripts/migrate-to-firebase.js",
+    "setup-production": "npm run build && npm run prepare-db",
+    "ci": "npm run lint && npm run typecheck && npm run build",
+    "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.6.2",

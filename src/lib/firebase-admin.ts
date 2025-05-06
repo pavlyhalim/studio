@@ -15,10 +15,17 @@ try {
     serviceAccount = JSON.parse(
       process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON
     );
+  } else if (isDev) {
+    console.warn('FIREBASE_SERVICE_ACCOUNT_KEY_JSON environment variable not found.');
+    console.warn('Firebase Admin will initialize with limited functionality in development mode.');
+  } else {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY_JSON environment variable is required in production mode');
   }
 } catch (error) {
   console.error('Error parsing Firebase service account JSON:', error);
-  // Don't throw here to allow graceful failure in development
+  if (!isDev) {
+    throw new Error('Failed to parse Firebase service account credentials. Check your environment variables.');
+  }
 }
 
 // Initialize Firebase Admin only once
@@ -42,6 +49,9 @@ if (!getApps().length) {
       });
     } else {
       console.error('Firebase Admin initialization error:', error);
+      if (!isDev) {
+        throw error; // In production, we need to fail hard if Firebase Admin can't initialize
+      }
     }
   }
 }

@@ -79,22 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             
             setUser(userWithRole);
             
-            // If the user exists in auth but no Firestore record, update Firestore
-            if (!userDoc.exists()) {
-              // Create a basic user document
-              await setDoc(userDocRef, {
-                id: firebaseUser.uid,
-                name: firebaseUser.displayName || 'Firebase User',
-                email: firebaseUser.email?.toLowerCase(),
-                role: 'student', // Default role
-                photoURL: firebaseUser.photoURL,
-                createdAt: serverTimestamp(),
-                lastLogin: serverTimestamp()
-              });
-            } else {
-              // Update last login timestamp
-              await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
-            }
+            // Update last login timestamp
+            await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
           } else {
             // Handle first-time authentication (user in Auth but not in Firestore)
             console.log("New user logged in but no Firestore record yet");
