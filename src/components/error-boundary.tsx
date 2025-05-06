@@ -1,3 +1,5 @@
+// src/components/error-boundary.tsx
+
 'use client';
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
@@ -16,25 +18,18 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   public state: ErrorBoundaryState = {
     hasError: false,
     error: null,
   };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    // Update state so the next render shows the fallback UI
     return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
-    // You can log the error to an error reporting service
     console.error('ErrorBoundary caught an error:', error, errorInfo);
-    
-    // In production, you might want to send this to a service like Sentry
-    // if (process.env.NODE_ENV === 'production') {
-    //   // Send to error reporting service
-    // }
   }
 
   resetErrorBoundary = (): void => {
@@ -47,7 +42,6 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         return this.props.fallback;
       }
 
-      // Default error UI
       return (
         <div className="min-h-[200px] flex items-center justify-center p-6">
           <div className="max-w-md w-full">
@@ -80,5 +74,3 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     return this.props.children;
   }
 }
-
-export { ErrorBoundary };

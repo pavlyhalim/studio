@@ -1,85 +1,86 @@
+// src/app/api/auth/signup/route.ts
+
 import { NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
-import { adminDb } from '@/lib/firebase-admin';
-import { COLLECTIONS } from '@/lib/models';
+import { auth, db } from "@/lib/firebase";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { COLLECTIONS } from "@/lib/models";
 import type { UserRecord } from '@/lib/models';
-import { setDoc, doc, serverTimestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: Request) {
   try {
     const { name, email, password } = await request.json();
 
     if (!name || !email || !password) {
-      return NextResponse.json({ message: 'Name, email, and password are required' }, { status: 400 });
+      return NextResponse.json({ 
+        message: 'Name, email, and password are required' 
+      }, { status: 400 });
     }
 
     if (password.length < 6) {
-      return NextResponse.json({ message: 'Password must be at least 6 characters long' }, { status: 400 });
+      return NextResponse.json({ 
+        message: 'Password must be at least 6 characters long' 
+      }, { status: 400 });
     }
 
     try {
-      // Check if user already exists by email
-      const userRecord = await adminAuth.getUserByEmail(email).catch(() => null);
+      // Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
       
-      if (userRecord) {
-        return NextResponse.json({ message: 'Email address is already registered' }, { status: 409 });
-      }
-    } catch (error: any) {
-      // Continue if user not found (expected behavior)
-      if (error.code !== 'auth/user-not-found') {
-        throw error;
-      }
-    }
-
-    // Create user in Firebase Auth
-    const userRecord = await adminAuth.createUser({
-      email,
-      password,
-      displayName: name,
-      emailVerified: false // Set to true to skip email verification
-    });
-
-    // Create user document in Firestore
-    const userData: UserRecord = {
-      id: userRecord.uid,
-      name,
-      email: email.toLowerCase(),
-      role: 'student', // Default role
-      photoURL: userRecord.photoURL || undefined,
-      createdAt: Date.now(), // Server timestamp
-      lastLogin: Date.now()
-    };
-
-    await setDoc(doc(adminDb, COLLECTIONS.USERS, userRecord.uid), userData);
-
-    // Create custom token for client auth
-    const customToken = await adminAuth.createCustomToken(userRecord.uid);
-
-    return NextResponse.json({
-      token: customToken,
-      user: {
-        id: userRecord.uid,
+      // Update profile with name
+      await updateProfile(user, { displayName: name });
+      
+      // Create user document in Firestore
+      const userData: UserRecord = {
+        id: user.uid,
         name,
-        email,
-        role: 'student',
-        photoURL: userRecord.photoURL || null
+        email: email.toLowerCase(),
+        role: 'student', // Default role for new users
+        photoURL: user.photoURL || undefined,
+        createdAt: Date.now(),
+        lastLogin: Date.now()
+      };
+      
+      await setDoc(doc(db, COLLECTIONS.USERS, user.uid), userData);
+      
+      // Get ID token for client auth
+      const token = await user.getIdToken();
+      
+      // Return user data and token
+      const { passwordHash, ...safeUserData } = userData as any;
+      
+      return NextResponse.json({ 
+        token, 
+        user: safeUserData 
+      }, { status: 201 });
+      
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      
+      // Handle specific Firebase Auth errors
+      const errorCode = error.code;
+      let message = 'Failed to create account';
+      let status = 400;
+      
+      if (errorCode === 'auth/email-already-in-use') {
+        message = 'Email address is already registered';
+        status = 409;
+      } else if (errorCode === 'auth/invalid-email') {
+        message = 'Invalid email address format';
+      } else if (errorCode === 'auth/weak-password') {
+        message = 'Password is too weak. It must be at least 6 characters';
+      } else {
+        message = error.message || 'An unexpected error occurred during signup';
+        status = 500;
       }
-    }, { status: 201 });
-
-  } catch (error: any) {
-    console.error('Signup API Error:', error);
-
-    // Handle specific Firebase errors
-    if (error.code === 'auth/email-already-exists') {
-      return NextResponse.json({ message: 'Email address is already registered' }, { status: 409 });
-    } else if (error.code === 'auth/invalid-email') {
-      return NextResponse.json({ message: 'Invalid email address format' }, { status: 400 });
-    } else if (error.code === 'auth/weak-password') {
-      return NextResponse.json({ message: 'Password is too weak. It must be at least 6 characters' }, { status: 400 });
+      
+      return NextResponse.json({ message }, { status });
     }
-
+  } catch (error) {
+    console.error('API route error:', error);
     return NextResponse.json({ 
-      message: error.message || 'An unexpected error occurred during signup' 
+      message: 'An internal server error occurred' 
     }, { status: 500 });
   }
 }

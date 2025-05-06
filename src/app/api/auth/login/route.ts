@@ -1,90 +1,92 @@
+// src/app/api/auth/login/route.ts
+
 import { NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase-admin';
-import { adminDb } from '@/lib/firebase-admin';
-import { COLLECTIONS } from '@/lib/models';
+import { auth, db } from "@/lib/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { COLLECTIONS } from "@/lib/models";
 import type { UserRecord } from '@/lib/models';
-import { getDoc, doc, updateDoc, serverTimestamp } from 'firebase-admin/firestore';
 
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
 
     if (!email || !password) {
-      return NextResponse.json({ message: 'Email and password are required' }, { status: 400 });
+      return NextResponse.json({ 
+        message: 'Email and password are required' 
+      }, { status: 400 });
     }
 
-    // Sign in user with Firebase Admin SDK
-    const userCredential = await adminAuth.signInWithEmailAndPassword(email, password);
-    
-    if (!userCredential || !userCredential.user) {
-      return NextResponse.json({ message: 'Invalid email or password' }, { status: 401 });
-    }
-    
-    const uid = userCredential.user.uid;
-    
-    // Get user data from Firestore
-    const userDocRef = doc(adminDb, COLLECTIONS.USERS, uid);
-    const userDoc = await getDoc(userDocRef);
-    
-    if (!userDoc.exists()) {
-      // Create user document if it doesn't exist (shouldn't happen with properly set up auth)
-      const userData: Partial<UserRecord> = {
-        id: uid,
-        name: userCredential.user.displayName || email.split('@')[0],
-        email: email.toLowerCase(),
-        role: 'student', // Default role
-        createdAt: Date.now(),
-        lastLogin: Date.now()
-      };
+    try {
+      // Sign in with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
       
-      await updateDoc(userDocRef, userData);
-    } else {
-      // Update last login
-      await updateDoc(userDocRef, {
-        lastLogin: serverTimestamp()
-      });
-    }
-    
-    // Create custom token for client auth
-    const customToken = await adminAuth.createCustomToken(uid);
-    
-    // Return user data and token
-    const userData = userDoc.exists() ? userDoc.data() as UserRecord : {
-      id: uid,
-      name: userCredential.user.displayName || email.split('@')[0],
-      email: email.toLowerCase(),
-      role: 'student'
-    };
-    
-    return NextResponse.json({ 
-      token: customToken,
-      user: {
-        id: userData.id,
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
-        photoURL: userCredential.user.photoURL || null
+      // Get user data from Firestore
+      const userDocRef = doc(db, COLLECTIONS.USERS, user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      let userData: Partial<UserRecord>;
+      
+      if (userDoc.exists()) {
+        // Update last login time
+        await setDoc(userDocRef, { 
+          lastLogin: serverTimestamp() 
+        }, { merge: true });
+        
+        userData = userDoc.data() as UserRecord;
+      } else {
+        // Create user document if it doesn't exist yet
+        userData = {
+          id: user.uid,
+          name: user.displayName || email.split('@')[0],
+          email: email.toLowerCase(),
+          role: 'student', // Default role
+          createdAt: Date.now(),
+          lastLogin: serverTimestamp()
+        };
+        
+        await setDoc(userDocRef, userData);
       }
-    }, { status: 200 });
-
+      
+      // Get fresh ID token for client auth
+      const token = await user.getIdToken();
+      
+      // Return user data and token (excluding sensitive fields)
+      const { passwordHash, ...safeUserData } = userData as any;
+      
+      return NextResponse.json({ 
+        token, 
+        user: safeUserData 
+      }, { status: 200 });
+      
+    } catch (error: any) {
+      console.error("Login error:", error);
+      
+      // Handle specific Firebase Auth errors
+      const errorCode = error.code;
+      let message = 'Invalid email or password';
+      let status = 401;
+      
+      if (errorCode === 'auth/user-not-found' || errorCode === 'auth/wrong-password') {
+        message = 'Invalid email or password';
+      } else if (errorCode === 'auth/too-many-requests') {
+        message = 'Too many unsuccessful login attempts. Please try again later.';
+        status = 429;
+      } else if (errorCode === 'auth/user-disabled') {
+        message = 'This account has been disabled.';
+        status = 403;
+      } else {
+        message = error.message || 'An authentication error occurred';
+        status = 500;
+      }
+      
+      return NextResponse.json({ message }, { status });
+    }
   } catch (error) {
-    console.error('Login API Error:', error);
-    
-    if (error instanceof Error) {
-      const message = error.message || 'An unexpected error occurred';
-      
-      // Translate Firebase error messages
-      if (message.includes('auth/user-not-found') || message.includes('auth/wrong-password')) {
-        return NextResponse.json({ message: 'Invalid email or password' }, { status: 401 });
-      } else if (message.includes('auth/too-many-requests')) {
-        return NextResponse.json({ message: 'Too many login attempts. Please try again later.' }, { status: 429 });
-      } else if (message.includes('auth/user-disabled')) {
-        return NextResponse.json({ message: 'This account has been disabled.' }, { status: 403 });
-      }
-      
-      return NextResponse.json({ message }, { status: 500 });
-    }
-    
-    return NextResponse.json({ message: 'An internal server error occurred' }, { status: 500 });
+    console.error('API route error:', error);
+    return NextResponse.json({ 
+      message: 'An internal server error occurred' 
+    }, { status: 500 });
   }
 }

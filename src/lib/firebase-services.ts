@@ -1,6 +1,5 @@
-// Firebase service functions for data operations
+// src/lib/firebase-services.ts
 import { db, auth, storage } from "./firebase";
-import { adminDb, adminAuth } from "./firebase-admin";
 import { 
   collection, doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc, 
   query, where, orderBy, limit, serverTimestamp, Timestamp, 
@@ -20,7 +19,7 @@ import { COLLECTIONS, type UserRecord, type CourseRecord, type EnrollmentRecord,
 
 // ----- User Management -----
 
-// Create a new user with email and password
+// Create a new user with email and password (client side)
 export const createUser = async (
   name: string, 
   email: string, 
@@ -42,7 +41,7 @@ export const createUser = async (
       email: email.toLowerCase(),
       role: role,
       photoURL: user.photoURL || undefined,
-      createdAt: serverTimestamp() as unknown as number, // Will be converted to timestamp
+      createdAt: serverTimestamp() as unknown as number,
       lastLogin: serverTimestamp() as unknown as number
     };
     
@@ -171,6 +170,9 @@ export const createCourse = async (courseData: Omit<CourseRecord, 'id' | 'create
     
     const docRef = await addDoc(courseRef, newCourse);
     
+    // Update document with its ID
+    await updateDoc(docRef, { id: docRef.id });
+    
     return {
       id: docRef.id,
       ...newCourse
@@ -288,6 +290,9 @@ export const enrollStudent = async (studentId: string, courseId: string): Promis
     };
     
     const docRef = await addDoc(enrollmentRef, newEnrollment);
+    
+    // Update document with its ID
+    await updateDoc(docRef, { id: docRef.id });
     
     return {
       id: docRef.id,
@@ -420,6 +425,9 @@ export const createAssignment = async (assignmentData: Omit<AssignmentRecord, 'i
     
     const docRef = await addDoc(assignmentRef, newAssignment);
     
+    // Update document with its ID
+    await updateDoc(docRef, { id: docRef.id });
+    
     return {
       id: docRef.id,
       ...newAssignment
@@ -534,6 +542,9 @@ export const submitGrade = async (gradeData: Omit<GradeRecord, 'id' | 'gradedDat
     
     const docRef = await addDoc(gradeRef, newGrade);
     
+    // Update document with its ID
+    await updateDoc(docRef, { id: docRef.id });
+    
     return {
       id: docRef.id,
       ...newGrade
@@ -590,6 +601,9 @@ export const createAnnouncement = async (announcementData: Omit<AnnouncementReco
     };
     
     const docRef = await addDoc(announcementRef, newAnnouncement);
+    
+    // Update document with its ID
+    await updateDoc(docRef, { id: docRef.id });
     
     return {
       id: docRef.id,
@@ -733,6 +747,9 @@ export const uploadFile = async (
     
     const fileRef = collection(db, COLLECTIONS.FILES);
     const docRef = await addDoc(fileRef, fileRecord);
+    
+    // Update document with its ID
+    await updateDoc(docRef, { id: docRef.id });
     
     return {
       id: docRef.id,
