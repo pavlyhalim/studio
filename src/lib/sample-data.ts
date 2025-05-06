@@ -1,7 +1,7 @@
 
 // src/lib/sample-data.ts
-import bcrypt from 'bcrypt';
-const saltRounds = 10; // Consistent salt rounds
+// import bcrypt from 'bcrypt'; // Removed bcrypt import
+// const saltRounds = 10; // Consistent salt rounds // Removed bcrypt usage
 
 // --- Interfaces ---
 
@@ -18,7 +18,7 @@ export interface User {
     email: string;
     role: 'student' | 'professor' | 'admin';
     // Represents the securely hashed password
-    passwordHash: string;
+    passwordHash: string; // This will now be a placeholder or plain text for sample data
 }
 
 export interface Enrollment {
@@ -82,14 +82,15 @@ export const mockUsersDb = new Map<string, User>();
 // Use bcrypt.hashSync for initial hashing (ONLY for seeding, never on client/request)
 const hashPasswordSync = (plainPassword: string): string => {
     // Avoid hashing excessively long passwords during seeding
-    const effectivePassword = plainPassword.length > 50 ? plainPassword.substring(0, 50) : plainPassword;
-    try {
-        return bcrypt.hashSync(effectivePassword, saltRounds);
-    } catch (error) {
-        console.error("Error hashing password during seeding:", error);
-        // Return a known invalid hash or handle appropriately
-        return '$2b$10$invalidhashgeneratedduringseed';
-    }
+    // const effectivePassword = plainPassword.length > 50 ? plainPassword.substring(0, 50) : plainPassword;
+    // try {
+    //     return bcrypt.hashSync(effectivePassword, saltRounds);
+    // } catch (error) {
+    //     console.error("Error hashing password during seeding:", error);
+    //     // Return a known invalid hash or handle appropriately
+    //     return '$2b$10$invalidhashgeneratedduringseed';
+    // }
+    return plainPassword; // Storing plain text for sample data, NOT FOR PRODUCTION
 };
 
 
@@ -164,7 +165,7 @@ export let initialSampleAssignments: Assignment[] = [
     { id: assign3Id, courseId: course202Id, title: 'Research Paper: Extremophiles', dueDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), description: 'Write a 5-page paper on life in extreme environments and its implications for astrobiology.', maxScore: 100 },
     { id: assign4Id, courseId: course303Id, title: 'Essay: Mutant Registration Act', dueDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), description: 'Discuss the ethical pros and cons of a mandatory registration for mutants.', maxScore: 50 },
     { id: assign5Id, courseId: course404Id, title: 'Lab Report: Signal Noise Reduction', dueDate: new Date(Date.now() + 12 * 24 * 60 * 60 * 1000), description: 'Analyze simulated SETI data and apply noise reduction techniques.', maxScore: 100 },
-    { id: assign6Id, courseId: course505Id, title: 'Quiz 1: Newton\'s Laws', dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), description: 'Short quiz on Newton\'s laws of motion.', maxScore: 20 }, // Assignment for new course
+    { id: assign6Id, courseId: course505Id, title: 'Quiz 1: Newton's Laws', dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), description: 'Short quiz on Newton's laws of motion.', maxScore: 20 }, // Assignment for new course
 ];
 
 export let initialSampleGrades: Grade[] = [
@@ -181,7 +182,7 @@ export let initialSampleAnnouncements: Announcement[] = [
     { id: 'ann1', courseId: course101Id, title: 'Welcome to Quantum Physics!', content: 'Welcome everyone! Please review the syllabus and the first reading assignment.', postedDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), professorId: prof1Id },
     { id: 'ann2', courseId: course101Id, title: 'Office Hours Update', content: 'My office hours for this week will be moved to Wednesday 2-3 PM.', postedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), professorId: prof1Id },
     { id: 'ann3', courseId: course202Id, title: 'Guest Lecture Next Week', content: 'We will have a guest lecture from Dr. Jill Tarter on the SETI project next Tuesday.', postedDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), professorId: prof2Id },
-    { id: 'ann4', courseId: course505Id, title: 'First Quiz Reminder', content: 'Don\'t forget the first quiz on Newton\'s Laws is due soon!', postedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), professorId: prof2Id }, // Announcement for new course
+    { id: 'ann4', courseId: course505Id, title: 'First Quiz Reminder', content: 'Don't forget the first quiz on Newton's Laws is due soon!', postedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), professorId: prof2Id }, // Announcement for new course
 ];
 
 export let initialSampleUploadedFiles: UploadedFile[] = [

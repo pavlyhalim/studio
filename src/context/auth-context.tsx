@@ -1,233 +1,212 @@
-
 "use client";
 
 import type { ReactNode } from 'react';
 import { createContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from "@/hooks/use-toast";
-import { mockUsersDb, type User } from "@/lib/sample-data"; // Use mock DB
-
-// --- Traditional Auth Simulation ---
-// This simulates API calls to a backend.
+import { auth, db } from '@/lib/firebase'; // Import Firebase auth and db
+import {
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut as firebaseSignOut,
+    onAuthStateChanged,
+    updateProfile,
+    type User as FirebaseUser
+} from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Define possible roles
 export type UserRole = 'student' | 'professor' | 'admin' | null;
 
-// Define simplified user structure for context (matches API response)
-interface SimpleUser extends Omit<User, 'passwordHash'> {}
+// Define our application's user structure
+interface AppUser {
+  id: string; // Firebase UID
+  email: string | null;
+  name: string | null;
+  role: UserRole;
+}
 
 interface AuthContextType {
-  user: SimpleUser | null;
+  user: AppUser | null;
   loading: boolean;
-  signInWithEmailPassword: (email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
-  signUpWithEmailPassword: (name: string, email: string, pass: string) => Promise<boolean>; // Returns true on success, false on failure
+  signInWithEmailPassword: (email: string, pass: string) => Promise<boolean>;
+  signUpWithEmailPassword: (name: string, email: string, pass: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   role: UserRole; // Effective role (user's role or demoRole if logged out)
   setRole: (role: UserRole) => void; // Function to set the demoRole when logged out
-  userId: string | null; // Added userId for convenience
+  userId: string | null;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<SimpleUser | null>(null);
-  const [loading, setLoading] = useState(true); // Start loading until session check is done
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const [sessionToken, setSessionToken] = useState<string | null>(null); // Simulate session/token
-  const [demoRole, setDemoRole] = useState<UserRole>('student'); // Default demo role
+  const [demoRole, setDemoRole] = useState<UserRole>('student');
 
-  // --- Client-Side Only Effect for Session Check ---
-  useEffect(() => {
-    // Check if running in the browser before accessing localStorage
-    if (typeof window === 'undefined') {
-      setLoading(false); // Not in browser, stop loading
-      return;
+  // Firebase error handler
+  const handleAuthError = (error: any, action: "Sign-In" | "Sign-Up" | "Sign-Out" | "Session Management") => {
+    let title = `${action} Failed`;
+    let description = "An unexpected error occurred. Please try again.";
+
+    if (error && error.code) {
+        switch (error.code) {
+            case 'auth/user-not-found':
+            case 'auth/wrong-password':
+                description = "Invalid email or password.";
+                break;
+            case 'auth/email-already-in-use':
+                description = "This email address is already in use.";
+                break;
+            case 'auth/weak-password':
+                description = "Password is too weak. It should be at least 6 characters.";
+                break;
+            case 'auth/invalid-email':
+                description = "The email address is not valid.";
+                break;
+            default:
+                description = error.message || description;
+        }
+    } else if (error instanceof Error) {
+        description = error.message;
     }
 
-    const checkSession = async () => {
-        setLoading(true);
-        let storedToken: string | null = null;
+    console.error(`${action} Error:`, error);
+    toast({ title, description, variant: "destructive" });
+  };
+
+  // Listener for Firebase authentication state changes
+  useEffect(() => {
+    setLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
         try {
-            storedToken = localStorage.getItem('authToken');
+          // Fetch user profile from Firestore
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+
+          if (userDocSnap.exists()) {
+            const userDataFromFirestore = userDocSnap.data();
+            setUser({
+              id: firebaseUser.uid,
+              email: firebaseUser.email,
+              name: firebaseUser.displayName || userDataFromFirestore.name, // Prefer displayName, fallback to Firestore
+              role: userDataFromFirestore.role || 'student', // Default to student if role not in Firestore
+            });
+          } else {
+            // This case might happen if Firestore document creation failed during signup
+            // Or if it's a new sign-in method for an existing Firebase user without a profile yet
+            console.warn(`No Firestore profile found for user ${firebaseUser.uid}. Using Firebase data only.`);
+            // Creating a default profile here might be an option
+            // For now, set with available Firebase data and a default role
+            const defaultRole = 'student';
+            const defaultName = firebaseUser.displayName || "New User";
+            await setDoc(doc(db, "users", firebaseUser.uid), {
+                name: defaultName,
+                email: firebaseUser.email,
+                role: defaultRole,
+                createdAt: new Date().toISOString(),
+            });
+            setUser({
+                id: firebaseUser.uid,
+                email: firebaseUser.email,
+                name: defaultName,
+                role: defaultRole,
+            });
+          }
         } catch (error) {
-            console.warn("AuthProvider: Error accessing localStorage (maybe disabled).", error);
+          console.error("Error fetching user profile from Firestore:", error);
+          // Fallback to Firebase data if Firestore fetch fails
+          setUser({
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: firebaseUser.displayName,
+            role: 'student', // Fallback role
+          });
+          handleAuthError(error, "Session Management");
         }
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
 
-        if (storedToken) {
-            setSessionToken(storedToken); // Set token state first
-            try {
-                const response = await fetch('/api/auth/me', {
-                    headers: { 'Authorization': `Bearer ${storedToken}` }
-                });
-                if (response.ok) {
-                    const userData: SimpleUser = await response.json();
-                    setUser(userData);
-                    console.log("AuthProvider: Session restored for user:", userData.email);
-                } else {
-                     console.warn("AuthProvider: Invalid or expired token found. Clearing session.");
-                    localStorage.removeItem('authToken');
-                    setUser(null);
-                    setSessionToken(null);
-                }
-            } catch (error) {
-                console.error("AuthProvider: Error during session check API call:", error);
-                localStorage.removeItem('authToken');
-                setUser(null);
-                setSessionToken(null);
-            }
-        } else {
-             // No token found
-             // console.log("AuthProvider: No session token found.");
-             setUser(null);
-             setSessionToken(null);
-        }
-        setLoading(false);
-    };
-
-    checkSession();
-    // This effect should only run once on mount
+    return () => unsubscribe(); // Cleanup subscription on unmount
   }, []);
 
 
-  // Simplified error handling for API simulation
-  const handleAuthError = (error: any, action: "Sign-In" | "Sign-Up" | "Sign-Out" | "Session Check") => {
-    let errorMessage = `An error occurred during ${action}. Please try again.`;
-    let title = `${action} Failed`;
+  const signUpWithEmailPassword = useCallback(
+    async (name: string, email: string, pass: string): Promise<boolean> => {
+      setLoading(true);
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
+        const firebaseUser = userCredential.user;
 
-    if (error instanceof Error) {
-        // Use message from simulated API error if available
-        errorMessage = error.message || errorMessage;
-    } else if (typeof error === 'string') {
-        errorMessage = error;
-    }
+        // Update Firebase profile display name
+        await updateProfile(firebaseUser, { displayName: name });
 
-    // Log the full error for debugging
-    console.error(`${action} Error:`, error?.code, errorMessage, error);
-
-    toast({
-        title: title,
-        description: errorMessage,
-        variant: "destructive",
-    });
-  };
-
-
-  const signInWithEmailPassword = useCallback(async (email: string, pass: string): Promise<boolean> => {
-    setLoading(true);
-    try {
-        const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password: pass }),
+        // Create user document in Firestore
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        await setDoc(userDocRef, {
+          name: name,
+          email: firebaseUser.email,
+          role: 'student', // Default role for new users
+          createdAt: new Date().toISOString(), // Optional: timestamp
         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `Login failed with status ${response.status}`);
-        }
+        // User state will be set by onAuthStateChanged listener
+        toast({ title: "Account created successfully!" });
+        setLoading(false);
+        return true;
+      } catch (error: any) {
+        handleAuthError(error, "Sign-Up");
+        setLoading(false);
+        return false;
+      }
+    }, [toast]
+  );
 
-        const { token, user: userData } = await response.json();
-
-        setUser(userData);
-        setSessionToken(token);
-         if (typeof window !== 'undefined') {
-            localStorage.setItem('authToken', token);
-         }
+  const signInWithEmailPassword = useCallback(
+    async (email: string, pass: string): Promise<boolean> => {
+      setLoading(true);
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+        // User state will be set by onAuthStateChanged listener
         toast({ title: "Successfully signed in." });
         setLoading(false);
         return true;
-
-    } catch (error: any) {
+      } catch (error: any) {
         handleAuthError(error, "Sign-In");
-        setUser(null);
-        setSessionToken(null);
-        if (typeof window !== 'undefined') {
-            localStorage.removeItem('authToken');
-        }
         setLoading(false);
         return false;
-    }
-  }, [toast]); // Added toast dependency
-
- const signUpWithEmailPassword = useCallback(async (name: string, email: string, pass: string): Promise<boolean> => {
-    setLoading(true);
-    try {
-        const response = await fetch('/api/auth/signup', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, password: pass }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || `Sign-up failed with status ${response.status}`);
-        }
-
-        const { token, user: newUser } = await response.json();
-
-        setUser(newUser);
-        setSessionToken(token);
-        if (typeof window !== 'undefined') {
-            localStorage.setItem('authToken', token);
-        }
-        toast({ title: "Account created successfully!" });
-        setLoading(false);
-         return true;
-
-    } catch (error: any) {
-        handleAuthError(error, "Sign-Up");
-        setUser(null);
-        setSessionToken(null);
-        if (typeof window !== 'undefined') {
-             localStorage.removeItem('authToken');
-        }
-        setLoading(false);
-        return false;
-    }
- }, [toast]); // Added toast dependency
-
+      }
+    }, [toast]
+  );
 
   const signOut = useCallback(async () => {
     setLoading(true);
     try {
-        // Simulate API call to logout endpoint (optional)
-        // await fetch('/api/auth/logout', { method: 'POST' });
-
-        setUser(null);
-        setSessionToken(null);
-        if (typeof window !== 'undefined') {
-            localStorage.removeItem('authToken');
-        }
-        toast({ title: "Successfully signed out." });
-        setDemoRole('student'); // Reset demo role on sign out
+      await firebaseSignOut(auth);
+      // User state will be set to null by onAuthStateChanged listener
+      toast({ title: "Successfully signed out." });
+      setDemoRole('student'); // Reset demo role on sign out
     } catch (error: any) {
       handleAuthError(error, "Sign-Out");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-  }, [toast]); // Added toast dependency
+  }, [toast]);
 
-  // Function to set the demo role, only works if user is not logged in
-  const handleSetRole = useCallback((role: UserRole) => {
+  const handleSetRole = useCallback((newRole: UserRole) => {
     if (!user) {
-      setDemoRole(role);
+      setDemoRole(newRole);
     } else {
       console.warn("Cannot set demo role while logged in.");
-      // Optionally provide feedback to the user
-      // toast({ title: "Action Denied", description: "Log out to switch demo roles." });
     }
   }, [user]);
 
-
-  // Role is now derived from the authenticated user OR the demo role
-  const currentRole = useMemo(() => {
-    return user?.role ?? demoRole; // Prioritize user's actual role
-  }, [user, demoRole]);
-
-   const currentUserId = useMemo(() => {
-     return user?.id ?? null; // Use user's ID if logged in
-   }, [user]);
-
+  const currentRole = useMemo(() => user?.role ?? demoRole, [user, demoRole]);
+  const currentUserId = useMemo(() => user?.id ?? null, [user]);
 
   const value = useMemo(() => ({
     user,
@@ -239,17 +218,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRole: handleSetRole,
     userId: currentUserId,
   }), [
-      user,
-      loading,
-      currentRole,
-      currentUserId,
-      handleSetRole,
-      signInWithEmailPassword, // Add memoized functions
-      signUpWithEmailPassword,
-      signOut
-    ]);
+    user, loading, currentRole, currentUserId,
+    signInWithEmailPassword, signUpWithEmailPassword, signOut, handleSetRole
+  ]);
 
-
-  // Render children; loading state handles initial rendering until session check completes.
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

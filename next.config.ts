@@ -21,9 +21,7 @@ const nextConfig: NextConfig = {
     ],
   },
   // Add bcrypt and related modules to serverComponentsExternalPackages
-  experimental: {
-    serverComponentsExternalPackages: ['bcrypt', 'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-loader'],
-  },
+  serverExternalPackages: ['bcrypt', 'node-pre-gyp', '@mapbox/node-pre-gyp', 'node-loader'],
   // Add Webpack config to ignore the problematic file/packages
   webpack: (config, { isServer, webpack }) => {
     // Ignore problematic native module dependencies more broadly on both server and client
@@ -38,14 +36,14 @@ const nextConfig: NextConfig = {
     config.plugins.push(
       new webpack.IgnorePlugin({
         resourceRegExp: /index\.html$/,
-        contextRegExp: /@mapbox[\\\/]node-pre-gyp[\\\/]lib[\\\/]util[\\\/]nw-pre-gyp$/,
+        contextRegExp: /@mapbox[\/]node-pre-gyp[\/]lib[\/]util[\/]nw-pre-gyp$/,
       })
     );
 
     // Rule for .node files (often needed for bcrypt)
     // Check if a similar rule already exists before adding
     const hasNodeLoaderRule = config.module.rules.some(
-      (rule: any) => rule.loader === 'node-loader' && rule.test?.toString() === '/\\.node$/'
+      (rule: any) => rule.loader === 'node-loader' && rule.test?.toString() === '/\.node$/'
     );
     if (!hasNodeLoaderRule) {
       config.module.rules.push({
