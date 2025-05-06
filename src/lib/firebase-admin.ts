@@ -1,62 +1,54 @@
-// Firebase Admin SDK Configuration
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-import { getStorage } from 'firebase-admin/storage';
+// src/lib/firebase-admin.ts
 
-// Check if we're not in a production environment
+import { cert, getApps, initializeApp, AppOptions } from 'firebase-admin/app';
+import { getAuth }  from 'firebase-admin/auth';
+import { getFirestore }  from 'firebase-admin/firestore';
+import { getStorage }  from 'firebase-admin/storage';
+import { existsSync } from 'fs';
+import { join }     from 'path';
+
 const isDev = process.env.NODE_ENV !== 'production';
+const options: AppOptions = {};
 
-// Parse the service account JSON from environment variable
-// This helps avoid having to store the actual JSON file
-let serviceAccount;
-try {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON) {
-    serviceAccount = JSON.parse(
-      process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON
-    );
-  } else if (isDev) {
-    console.warn('FIREBASE_SERVICE_ACCOUNT_KEY_JSON environment variable not found.');
-    console.warn('Firebase Admin will initialize with limited functionality in development mode.');
-  } else {
-    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY_JSON environment variable is required in production mode');
-  }
-} catch (error) {
-  console.error('Error parsing Firebase service account JSON:', error);
-  if (!isDev) {
-    throw new Error('Failed to parse Firebase service account credentials. Check your environment variables.');
-  }
-}
-
-// Initialize Firebase Admin only once
-if (!getApps().length) {
+// 1) Try parsing credentials from env var
+if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON) {
   try {
-    initializeApp({
-      credential: serviceAccount 
-        ? cert(serviceAccount) 
-        : (isDev ? undefined : cert(serviceAccount)), // In dev, can initialize without credentials
-      storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    });
-    console.log('Firebase Admin initialized');
-  } catch (error: any) {
-    if (isDev && error.code === 'app/invalid-credential') {
-      console.warn(
-        'Firebase Admin initialized without credentials. Some functionality may be limited.'
-      );
-      // Initialize with a minimal configuration for development
-      initializeApp({
-        projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-      });
-    } else {
-      console.error('Firebase Admin initialization error:', error);
-      if (!isDev) {
-        throw error; // In production, we need to fail hard if Firebase Admin can't initialize
-      }
-    }
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY_JSON);
+    options.credential = cert(serviceAccount);
+  } catch (e) {
+    console.error('Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY_JSON:', e);
+    if (!isDev) throw new Error('Invalid service account JSON in env var');
+  }
+}
+// 2) Fallback to the JSON file in src/lib if it exists
+else {
+  const keyPath = join(process.cwd(), 'src/lib/serviceAccountKey.json');
+  if (existsSync(keyPath)) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const serviceAccount = require(keyPath);
+    options.credential = cert(serviceAccount);
+  } else if (isDev) {
+    console.warn('No service account credentials found; running in dev without admin credential');
+    // In dev mode, Admin SDK will use Application Default Credentials or limited functionality
+  } else {
+    throw new Error(
+      'Missing Firebase service account credentials. ' +
+      'Set FIREBASE_SERVICE_ACCOUNT_KEY_JSON or place serviceAccountKey.json in src/lib'
+    );
   }
 }
 
-// Export the services
-export const adminAuth = getAuth();
-export const adminDb = getFirestore();
+// 3) Include storageBucket if configured
+if (process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET) {
+  options.storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+}
+
+// Initialize the Admin app once
+if (!getApps().length) {
+  initializeApp(options);
+  console.log('✅ Firebase Admin initialized');
+}
+
+export const adminAuth    = getAuth();
+export const adminDb      = getFirestore();
 export const adminStorage = getStorage();

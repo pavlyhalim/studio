@@ -847,6 +847,15 @@ export const getStudentFiles = async (studentId: string): Promise<FileRecord[]> 
   }
 };
 
+export const deleteUser = async (userId: string): Promise<void> => {
+  try {
+    await deleteDoc(doc(db, COLLECTIONS.USERS, userId));
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    throw error;
+  }
+};
+
 // Delete a file
 export const deleteFile = async (fileId: string) => {
   try {

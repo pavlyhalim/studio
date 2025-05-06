@@ -548,5 +548,6 @@ function ProfessorName({ professorId, inline = false }: { professorId: string, i
 }
 
 // Import missing components
-import { Alert, AlertTitle, AlertDescription, AlertCircle } from "@/components/ui/alert";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
