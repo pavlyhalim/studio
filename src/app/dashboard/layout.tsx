@@ -10,7 +10,7 @@ import { Footer } from '@/components/landing/footer';
 import { Loader2 } from 'lucide-react';
 
 // Set to true to enforce login for dashboard access
-const REQUIRE_LOGIN = false;
+const REQUIRE_LOGIN = true;
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();

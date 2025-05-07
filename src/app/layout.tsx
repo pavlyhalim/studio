@@ -1,30 +1,31 @@
-
-import type {Metadata} from 'next';
-import { GeistSans } from 'geist/font/sans'; // Corrected import for GeistSans
-// Removed GeistMono import as it was causing module not found error
+import type { Metadata } from 'next';
+import { GeistSans } from 'geist/font/sans';
 import './globals.css';
 import { AuthProvider } from '@/context/auth-context';
-import { Toaster } from "@/components/ui/toaster"; // Import Toaster
+import { Toaster } from '@/components/ui/toaster';
+import AuthRedirector from '@/components/AuthRedirector';
+import NetworkStatus from '@/components/NetworkStatus';
 
 export const metadata: Metadata = {
-  title: 'ALANT Lite', // Updated title
-  description: 'AI-Powered Learning App by Firebase Studio', // Updated description
+  title: 'ALANT Lite',
+  description: 'AI-Powered Learning App by Firebase Studio',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    // Removed GeistMono variable usage
-    <html lang="en" className={`${GeistSans.variable}`}>
-      {/* Apply font variables directly to the html tag */}
-      {/* Added suppressHydrationWarning to ignore potential mismatches caused by browser extensions */}
-      <body className={`antialiased font-sans`} suppressHydrationWarning={true}> {/* Use Tailwind's font-sans class */}
+    <html lang="en" className={GeistSans.variable}>
+      <body className="antialiased font-sans" suppressHydrationWarning>
         <AuthProvider>
-            {children}
-            <Toaster /> {/* Add Toaster component here */}
+          {/* Show offline banner when needed */}
+          <NetworkStatus />
+          {/* Redirect user on login/logout */}
+          <AuthRedirector />
+          {/* Main application */}
+          {children}
+          {/* Global toasts */}
+          <Toaster />
         </AuthProvider>
       </body>
     </html>
