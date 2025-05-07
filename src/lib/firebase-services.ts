@@ -17,37 +17,42 @@ import {
 import { COLLECTIONS, type UserRecord, type CourseRecord, type EnrollmentRecord, 
   type AssignmentRecord, type GradeRecord, type AnnouncementRecord, type FileRecord } from "./models";
 
+// src/lib/firebase-services.ts
+// …other imports…
+
 // ----- User Management -----
 
-// Create a new user with email and password (client side)
 export const createUser = async (
-  name: string, 
-  email: string, 
-  password: string, 
+  name: string,
+  email: string,
+  password: string,
   role: 'student' | 'professor' | 'admin' = 'student'
 ): Promise<UserRecord> => {
   try {
     // Create the user in Firebase Auth
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
-    
+
     // Update profile with name
     await updateProfile(user, { displayName: name });
-    
-    // Create user document in Firestore
-    const userDoc: UserRecord = {
+
+    // Build the Firestore document, omitting photoURL if undefined
+    const baseDoc = {
       id: user.uid,
-      name: name,
+      name,
       email: email.toLowerCase(),
-      role: role,
-      photoURL: user.photoURL || undefined,
+      role,
       createdAt: serverTimestamp() as unknown as number,
-      lastLogin: serverTimestamp() as unknown as number
+      lastLogin:  serverTimestamp() as unknown as number,
     };
-    
+
+    const userDoc: UserRecord = user.photoURL
+      ? { ...baseDoc, photoURL: user.photoURL }
+      : (baseDoc as UserRecord);
+
     // Add user to Firestore
     await setDoc(doc(db, COLLECTIONS.USERS, user.uid), userDoc);
-    
+
     return userDoc;
   } catch (error) {
     console.error("Error creating user:", error);
@@ -55,53 +60,36 @@ export const createUser = async (
   }
 };
 
-// Sign in user with email and password
-export const signInUser = async (email: string, password: string) => {
-  try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    
-    // Update last login
-    await updateDoc(doc(db, COLLECTIONS.USERS, userCredential.user.uid), {
-      lastLogin: serverTimestamp()
-    });
-    
-    return userCredential.user;
-  } catch (error) {
-    console.error("Error signing in user:", error);
-    throw error;
-  }
-};
-
-// Sign in with Google
 export const signInWithGoogle = async () => {
   try {
     const provider = new GoogleAuthProvider();
     const userCredential = await signInWithPopup(auth, provider);
     const user = userCredential.user;
-    
-    // Check if user exists in Firestore
-    const userDoc = await getDoc(doc(db, COLLECTIONS.USERS, user.uid));
-    
-    if (!userDoc.exists()) {
-      // Create new user document
-      const newUser: UserRecord = {
+
+    const userRef = doc(db, COLLECTIONS.USERS, user.uid);
+    const userSnap = await getDoc(userRef);
+
+    if (!userSnap.exists()) {
+      // Build newUser doc, omit photoURL if undefined
+      const baseDoc = {
         id: user.uid,
         name: user.displayName || 'Google User',
         email: user.email!.toLowerCase(),
-        role: 'student', // Default role for Google sign-ins
-        photoURL: user.photoURL || undefined,
+        role: 'student' as const,
         createdAt: serverTimestamp() as unknown as number,
-        lastLogin: serverTimestamp() as unknown as number
+        lastLogin:  serverTimestamp() as unknown as number,
       };
-      
-      await setDoc(doc(db, COLLECTIONS.USERS, user.uid), newUser);
+
+      const newUser: UserRecord = user.photoURL
+        ? { ...baseDoc, photoURL: user.photoURL }
+        : (baseDoc as UserRecord);
+
+      await setDoc(userRef, newUser);
     } else {
-      // Update last login
-      await updateDoc(doc(db, COLLECTIONS.USERS, user.uid), {
-        lastLogin: serverTimestamp()
-      });
+      // Update only lastLogin timestamp
+      await updateDoc(userRef, { lastLogin: serverTimestamp() });
     }
-    
+
     return user;
   } catch (error) {
     console.error("Error signing in with Google:", error);
