@@ -62,55 +62,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // User is signed in
           console.log("Auth state changed: User is signed in");
           
-          // Get additional user data from Firestore
-          const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          
-          if (userDoc.exists()) {
-            const userData = userDoc.data() as UserRecord;
-            // Create the user object with Firestore role
-            const userWithRole: SimpleUser = {
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName,
-              email: firebaseUser.email,
-              role: userData.role || 'student', // Default to student if missing
-              photoURL: firebaseUser.photoURL
-            };
+          try {
+            // Get additional user data from Firestore
+            const userDocRef = doc(db, COLLECTIONS.USERS, firebaseUser.uid);
+            const userDoc = await getDoc(userDocRef);
             
-            setUser(userWithRole);
-            
-            // Update last login timestamp
-            await setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true });
-          } else {
-            // Handle first-time authentication (user in Auth but not in Firestore)
-            console.log("New user logged in but no Firestore record yet");
-            
-            // Create a basic user document
-            const newUserData: Partial<UserRecord> = {
-              id: firebaseUser.uid,
-              name: firebaseUser.displayName || 'Firebase User',
-              email: firebaseUser.email?.toLowerCase(),
-              role: 'student', // Default role
-              photoURL: firebaseUser.photoURL || undefined,
-              createdAt: serverTimestamp() as unknown as number,
-              lastLogin: serverTimestamp() as unknown as number
-            };
-            
-            await setDoc(userDocRef, newUserData);
-            
-            // Set the user state with the default role
+            if (userDoc.exists()) {
+              const userData = userDoc.data() as UserRecord;
+              // Create the user object with Firestore role
+              const userWithRole: SimpleUser = {
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName,
+                email: firebaseUser.email,
+                role: userData.role || 'student', // Default to student if missing
+                photoURL: firebaseUser.photoURL
+              };
+              
+              setUser(userWithRole);
+              
+              // Try to update last login timestamp - but don't block on it
+              setDoc(userDocRef, { lastLogin: serverTimestamp() }, { merge: true })
+                .catch(err => console.warn("Couldn't update last login time:", err));
+            } else {
+              // Handle first-time authentication (user in Auth but not in Firestore)
+              console.log("New user logged in but no Firestore record yet");
+              
+              // Create a basic user object even if we can't reach Firestore
+              setUser({
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName,
+                email: firebaseUser.email,
+                role: 'student', // Default to student for new users
+                photoURL: firebaseUser.photoURL
+              });
+              
+              // Try to create user document - but don't block on it
+              const newUserData: Partial<UserRecord> = {
+                id: firebaseUser.uid,
+                name: firebaseUser.displayName || 'Firebase User',
+                email: firebaseUser.email?.toLowerCase(),
+                role: 'student', // Default role
+                photoURL: firebaseUser.photoURL || undefined,
+                createdAt: serverTimestamp() as unknown as number,
+                lastLogin: serverTimestamp() as unknown as number
+              };
+              
+              setDoc(userDocRef, newUserData)
+                .then(() => {
+                  console.log("Created new user document");
+                  // Show welcome toast when document is created successfully
+                  toast({ 
+                    title: "Welcome to ALANT Lite!", 
+                    description: "Your account has been created successfully." 
+                  });
+                })
+                .catch(err => console.warn("Couldn't create user document:", err));
+            }
+          } catch (firestoreError) {
+            // If Firestore is offline, still create a minimal user object to allow app to work
+            console.warn("Firestore error, creating minimal user:", firestoreError);
             setUser({
               id: firebaseUser.uid,
               name: firebaseUser.displayName,
               email: firebaseUser.email,
-              role: 'student', // Default to student for new users
+              role: 'student', // Default role if we can't get from Firestore
               photoURL: firebaseUser.photoURL
-            });
-            
-            // Welcome the new user
-            toast({ 
-              title: "Welcome to ALANT Lite!", 
-              description: "Your account has been created successfully." 
             });
           }
         } else {
@@ -188,8 +204,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Use Firebase auth for sign-in
       const userCredential = await firebaseSignInWithEmailPassword(auth, email, pass);
       
-      // Success feedback is handled by the auth state change handler
+      // Success feedback
       toast({ title: "Successfully signed in." });
+      
+      // Short delay before redirect to let auth state update
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1500);
       
       return true;
     } catch (error: any) {
@@ -207,7 +228,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Use Firebase auth for Google sign-in
       await signInWithPopup(auth, googleProvider);
       
-      // Success feedback is handled by the auth state change handler
+      // Success feedback
+      toast({ title: "Successfully signed in with Google." });
+      
+      // Short delay before redirect
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1500);
       
       return true;
     } catch (error: any) {
@@ -216,7 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const signUpWithEmailPassword = useCallback(async (name: string, email: string, pass: string): Promise<boolean> => {
     try {
@@ -230,10 +257,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         displayName: name
       });
       
-      // Create user document in Firestore
-      // Note: Handled in the auth state change listener now
+      // Success feedback
+      toast({ title: "Account created successfully!" });
       
-      // Success feedback is handled by the auth state change handler
+      // Short delay before redirect
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 1500);
       
       return true;
     } catch (error: any) {
@@ -242,7 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const signOut = useCallback(async () => {
     try {
@@ -256,6 +286,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // Reset demo role on sign out
       setDemoRole('student');
+
+      // Redirect to home page
+      window.location.href = '/';
     } catch (error: any) {
       handleAuthError(error, "Sign-Out");
     } finally {

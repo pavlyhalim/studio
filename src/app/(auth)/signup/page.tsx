@@ -26,9 +26,10 @@ export default function SignUpPage() {
 
     useEffect(() => {
         if (!loading && user) {
-            router.push('/dashboard');
+          // Redirect is now handled by auth context
+          router.push('/dashboard');
         }
-    }, [user, loading, router]);
+      }, [user, loading, router]);
 
     const handleSignUp = async (e: FormEvent) => {
          e.preventDefault();

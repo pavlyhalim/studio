@@ -7,28 +7,30 @@ import { auth } from '@/lib/firebase';
 
 /**
  * AuthRedirector watches Firebase Auth state changes and
- * redirects to /dashboard when a user signs in,
- * or to /login when the user signs out.
- *
- * This is a client component and should be included in your root layout.
+ * redirects based on authentication status and current route.
+ * Disabled automatic redirects since they're now handled directly
+ * in the auth functions with window.location.
  */
 export default function AuthRedirector() {
   const router = useRouter();
 
   useEffect(() => {
-    // If already signed in, redirect immediately
-    if (auth.currentUser) {
-      router.push('/dashboard');
-      return;
-    }
-
-    // Subscribe to auth state changes
+    // Get current path
+    const path = window.location.pathname;
+    const isLoginPage = path === '/login' || path === '/signup';
+    const isProtectedRoute = path.startsWith('/dashboard') || 
+                             path.startsWith('/profile') || 
+                             path.startsWith('/settings');
+    
+    // Subscribe to auth state changes, but don't do automatic redirects anymore
+    // This is mostly to protect private routes from unauthenticated access
     const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
-      if (user) {
-        router.push('/dashboard');
-      } else {
-        router.push('/login');
+      if (!user && isProtectedRoute) {
+        // Only redirect from protected routes to login if not authenticated
+        const redirectPath = encodeURIComponent(path);
+        router.push(`/login?redirect=${redirectPath}`);
       }
+      // Let the auth functions handle other redirects
     });
 
     // Clean up subscription on unmount

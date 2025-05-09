@@ -30,11 +30,12 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (!loading && user) {
-            // Redirect to intended destination or dashboard
-            const redirectUrl = searchParams.get('redirect') || '/dashboard';
-            router.push(redirectUrl);
+          // Redirect is now handled by auth context
+          // This code will likely not run, but keeping it as a backup
+          const redirectUrl = searchParams.get('redirect') || '/dashboard';
+          router.push(redirectUrl);
         }
-    }, [user, loading, router, searchParams]);
+      }, [user, loading, router, searchParams]);
 
     const handleEmailPasswordSignIn = async (e: FormEvent) => {
         e.preventDefault();
