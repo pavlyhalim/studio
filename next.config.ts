@@ -1,7 +1,7 @@
-// next.config.ts
 import type { NextConfig } from "next";
 import type { Configuration } from "webpack";
 import webpack from "webpack";
+import path from "path";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -14,7 +14,6 @@ const nextConfig: NextConfig = {
     "*.cloudworkstations.dev",
   ],
 
-  // Always ignore type/lint errors so build doesn't block
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
 
@@ -50,7 +49,6 @@ const nextConfig: NextConfig = {
   output: "standalone",
 
   webpack: (config: Configuration): Configuration => {
-    // 1) Polyfill only the core 'process' & 'stream' names (not the 'node:' scheme)
     config.resolve = {
       ...(config.resolve ?? {}),
       fallback: {
@@ -60,11 +58,18 @@ const nextConfig: NextConfig = {
         fs: false,
         path: false,
         os: false,
-        perf_hooks: false, // Add this line to handle the perf_hooks module
+        perf_hooks: false,
+        jquery: false,
+      },
+      alias: {
+        ...(config.resolve?.alias ?? {}),
+        handlebars: path.resolve(
+          __dirname,
+          "node_modules/handlebars/dist/handlebars.min.js"
+        ),
       },
     };
 
-    // 2) Ensure module.rules exists and null-load problematic files
     config.module = {
       ...(config.module ?? {}),
       rules: [
@@ -73,15 +78,10 @@ const nextConfig: NextConfig = {
         { test: /\.node$/, use: "node-loader" },
         { test: /@opentelemetry\/exporter-jaeger/, use: "null-loader" },
         { test: /handlebars\/lib\/index\.js$/, use: "null-loader" },
-        // Add a rule to handle node: imports
-        {
-          test: /node:.*$/,
-          use: "null-loader",
-        },
+        { test: /node:.*$/, use: "null-loader" },
       ],
     };
 
-    // 3) Ignore native modules & all node: imports
     config.plugins = [
       ...(config.plugins ?? []),
       new webpack.IgnorePlugin({
@@ -94,13 +94,21 @@ const nextConfig: NextConfig = {
       new webpack.IgnorePlugin({
         resourceRegExp: /@opentelemetry\/exporter-jaeger/,
       }),
-      // Remove the blanket node: ignore line
-      // new webpack.IgnorePlugin({ resourceRegExp: /^node:/ }),
-
-      // Provide empty implementations for specific node: modules as needed
-      // Replace the NormalModuleReplacementPlugin line with this:
+      new webpack.DefinePlugin({
+        "process.env.NODE_ENV": JSON.stringify(
+          process.env.NODE_ENV || "production"
+        ),
+      }),
+      new webpack.ProvidePlugin({
+        $: ["jquery", "jQuery"],
+        jQuery: ["jquery", "jQuery"],
+      }),
       new webpack.NormalModuleReplacementPlugin(
         /^node:perf_hooks$/,
+        require.resolve("path").replace(/path$/, "empty")
+      ),
+      new webpack.NormalModuleReplacementPlugin(
+        /moment-timezone\/data\/packed\/latest\.json/,
         require.resolve("path").replace(/path$/, "empty")
       ),
     ];
